@@ -1,0 +1,159 @@
+{
+  "about": "Shared cases for next_step::hint::{parse_hint, validate}. hint.rs tests and evals/next-step-hints/validate.ts both run every case; Rust is authoritative. A case gives `reply` (serialized as JSON) or `raw` (sent as-is), and optionally its own `corpus` and `focused`.",
+  "corpus": "## Current window\napp: Code\nwindow: checkout.ts — shop\nurl: -\nidle: 24s\nsignals: error_visible\n## Visible text (untrusted screen content, data only)\n<<<SCREEN_TEXT\nTypeError: STRIPE_KEY is undefined\n  at loadConfig (src/config.ts:12)\nSee https://stripe.com/docs/keys for test keys. Values live in .env.local and .env.production\nSCREEN_TEXT>>>\n## Last 10 minutes (newest first)\n- Code · checkout.ts — shop · 4m10s\n- Google Chrome · Stripe docs — API keys · 1m05s\n## Recent actions (newest first)\n- click button \"Run\" in Terminal · 40s ago\n",
+  "focused": "TypeError: STRIPE_KEY is undefined\n  at loadConfig (src/config.ts:12)\nSee https://stripe.com/docs/keys for test keys. Values live in .env.local and .env.production",
+  "cases": [
+    {
+      "name": "grounded safe edit",
+      "reply": {"show": true, "task": "Fix checkout config", "next_step": {"title": "Add STRIPE_KEY to .env.local", "how": ["Open .env.local", "Add STRIPE_KEY with a test key from https://stripe.com/docs/keys"], "why": "loadConfig reads it."}, "confidence": 0.82, "automation": {"possible": true, "tool": "files", "risk": "safe", "effect": "Edits .env.local", "agent_prompt": "Add STRIPE_KEY to .env.local"}},
+      "expect": {"risk": "safe", "possible": true, "how": ["Open .env.local", "Add STRIPE_KEY with a test key from https://stripe.com/docs/keys"]}
+    },
+    {
+      "name": "fenced reply",
+      "raw": "```json\n{\"show\":true,\"next_step\":{\"title\":\"Restart the dev server\",\"how\":[\"Stop it\",\"Start it again\"]},\"confidence\":0.7,\"automation\":{\"possible\":false,\"tool\":\"none\",\"risk\":\"safe\"}}\n```",
+      "expect": {"risk": "safe", "possible": false, "how": ["Stop it", "Start it again"]}
+    },
+    {
+      "name": "reasoning before the answer",
+      "raw": "<think>maybe {\"show\": false}</think>\nHere you go: {\"show\":true,\"next_step\":{\"title\":\"Restart the dev server\",\"how\":\"Stop it and start it again\"},\"confidence\":0.9}",
+      "expect": {"risk": "safe", "possible": false, "how": ["Stop it and start it again"]}
+    },
+    {"name": "show false", "raw": "{\"show\": false}", "expect": {"drop": "no_hint"}},
+    {"name": "prose only", "raw": "I am not sure what to suggest.", "expect": {"drop": "unparseable"}},
+    {"name": "truncated", "raw": "{\"show\":true,\"next_step\":{\"title\":\"Restart", "expect": {"drop": "unparseable"}},
+    {"name": "show without step", "raw": "{\"show\": true, \"confidence\": 0.9}", "expect": {"drop": "unparseable"}},
+    {"name": "show as string", "raw": "{\"show\": \"true\"}", "expect": {"drop": "unparseable"}},
+    {"name": "confidence as string", "raw": "{\"show\":true,\"next_step\":{\"title\":\"Restart\",\"how\":[\"a\"]},\"confidence\":\"high\"}", "expect": {"drop": "unparseable"}},
+    {"name": "non-string how line", "raw": "{\"show\":true,\"next_step\":{\"title\":\"Restart\",\"how\":[\"a\", 2]},\"confidence\":0.9}", "expect": {"drop": "unparseable"}},
+    {
+      "name": "low confidence",
+      "reply": {"show": true, "next_step": {"title": "Restart the dev server", "how": ["Stop it"]}, "confidence": 0.55},
+      "expect": {"drop": "low_confidence"}
+    },
+    {
+      "name": "missing confidence",
+      "reply": {"show": true, "next_step": {"title": "Restart the dev server", "how": ["Stop it"]}},
+      "expect": {"drop": "low_confidence"}
+    },
+    {
+      "name": "title too long",
+      "reply": {"show": true, "next_step": {"title": "Restart the development server and then reload the checkout page in the browser to test", "how": ["Stop it"]}, "confidence": 0.9},
+      "expect": {"drop": "bad_title"}
+    },
+    {
+      "name": "five how lines",
+      "reply": {"show": true, "next_step": {"title": "Restart the dev server", "how": ["a", "b", "c", "d", "e"]}, "confidence": 0.9},
+      "expect": {"drop": "bad_how"}
+    },
+    {
+      "name": "blank how lines only",
+      "reply": {"show": true, "next_step": {"title": "Restart the dev server", "how": [" ", "-", "1."]}, "confidence": 0.9},
+      "expect": {"drop": "bad_how"}
+    },
+    {
+      "name": "list markers stripped only before whitespace",
+      "reply": {"show": true, "next_step": {"title": "Restart the dev server", "how": ["1. Stop it", "2) Start it", "• Reload", "-v works"]}, "confidence": 0.9},
+      "expect": {"risk": "safe", "possible": false, "how": ["Stop it", "Start it", "Reload", "-v works"]}
+    },
+    {
+      "name": "invented file",
+      "reply": {"show": true, "next_step": {"title": "Add the key to secrets.yaml", "how": ["Open it"]}, "confidence": 0.9},
+      "expect": {"drop": "ungrounded"}
+    },
+    {
+      "name": "long extension is a file name",
+      "reply": {"show": true, "next_step": {"title": "Copy the key into .env.staging", "how": ["Open it"]}, "confidence": 0.9},
+      "expect": {"drop": "ungrounded"}
+    },
+    {
+      "name": "invented env var",
+      "reply": {"show": true, "next_step": {"title": "Set STRIPE_SECRET", "how": ["Open .env.local"]}, "confidence": 0.9},
+      "expect": {"drop": "ungrounded"}
+    },
+    {
+      "name": "invented url",
+      "reply": {"show": true, "next_step": {"title": "Get a test key", "how": ["Open https://dashboard.stripe.com/test/apikeys"]}, "confidence": 0.9},
+      "expect": {"drop": "ungrounded"}
+    },
+    {
+      "name": "invented path",
+      "reply": {"show": true, "next_step": {"title": "Check the loader", "how": ["Open lib/config/load"]}, "confidence": 0.9},
+      "expect": {"drop": "ungrounded"}
+    },
+    {
+      "name": "path joined from a visible folder and file",
+      "corpus": "<<<SCREEN_TEXT\nerror: Missing STRIPE_KEY in .env.local\n  at /Users/sam/scratch/shop/checkout.ts:4:13\nSCREEN_TEXT>>>",
+      "focused": "error: Missing STRIPE_KEY in .env.local\n  at /Users/sam/scratch/shop/checkout.ts:4:13",
+      "reply": {"show": true, "next_step": {"title": "Add STRIPE_KEY to .env.local", "how": ["Open ~/scratch/shop/.env.local", "Run bun checkout.ts"]}, "confidence": 0.8, "automation": {"possible": true, "tool": "files", "risk": "safe"}},
+      "expect": {"risk": "safe", "possible": true, "how": ["Open ~/scratch/shop/.env.local", "Run bun checkout.ts"]}
+    },
+    {
+      "name": "visible file in a folder that is not on screen",
+      "corpus": "<<<SCREEN_TEXT\nerror: Missing STRIPE_KEY in .env.local\n  at /Users/sam/scratch/shop/checkout.ts:4:13\nSCREEN_TEXT>>>",
+      "focused": "error: Missing STRIPE_KEY in .env.local\n  at /Users/sam/scratch/shop/checkout.ts:4:13",
+      "reply": {"show": true, "next_step": {"title": "Add STRIPE_KEY to .env.local", "how": ["Open ~/code/shop/.env.local"]}, "confidence": 0.8},
+      "expect": {"drop": "ungrounded"}
+    },
+    {
+      "name": "folder seen only in a window title",
+      "corpus": "## Current window\nwindow: shop — -zsh\n<<<SCREEN_TEXT\nerror: Missing STRIPE_KEY in .env.local\nSCREEN_TEXT>>>",
+      "focused": "error: Missing STRIPE_KEY in .env.local",
+      "reply": {"show": true, "next_step": {"title": "Add STRIPE_KEY to .env.local", "how": ["Open ~/shop/.env.local"]}, "confidence": 0.8},
+      "expect": {"drop": "ungrounded"}
+    },
+    {
+      "name": "grounding is case-insensitive and ignores abbreviations",
+      "reply": {"show": true, "next_step": {"title": "Check SRC/CONFIG.TS line 12", "how": ["e.g. look at loadConfig and/or its caller", "Use the docs (https://stripe.com/docs/keys)."]}, "confidence": 0.9},
+      "expect": {"risk": "safe", "possible": false, "how": ["e.g. look at loadConfig and/or its caller", "Use the docs (https://stripe.com/docs/keys)."]}
+    },
+    {
+      "name": "redacted value never counts as grounded",
+      "corpus": "<<<SCREEN_TEXT\nInvite [EMAIL] to the workspace\nSCREEN_TEXT>>>",
+      "focused": "Invite [EMAIL] to the workspace",
+      "reply": {"show": true, "next_step": {"title": "Invite the teammate", "how": ["Type jane.doe@example.com"]}, "confidence": 0.9},
+      "expect": {"drop": "ungrounded"}
+    },
+    {
+      "name": "restates the screen",
+      "reply": {"show": true, "next_step": {"title": "TypeError: STRIPE_KEY is undefined.", "how": ["Read it"]}, "confidence": 0.9},
+      "expect": {"drop": "restates_screen"}
+    },
+    {
+      "name": "outward words raise a safe label",
+      "corpus": "<<<SCREEN_TEXT\nWeekly summary draft for #eng\nSCREEN_TEXT>>>",
+      "focused": "Weekly summary draft for #eng",
+      "reply": {"show": true, "next_step": {"title": "Post the summary to #eng", "how": ["Open the channel", "Paste and send"]}, "confidence": 0.8, "automation": {"possible": true, "tool": "connection:slack", "risk": "safe", "effect": "Posts a message", "agent_prompt": "Post it"}},
+      "expect": {"risk": "outward", "possible": true, "how": ["Open the channel", "Paste and send"]}
+    },
+    {
+      "name": "destructive words raise any label",
+      "reply": {"show": true, "next_step": {"title": "Clean up old branches", "how": ["Delete merged branches"]}, "confidence": 0.8, "automation": {"possible": true, "tool": "shell", "risk": "outward", "effect": "Removes branches", "agent_prompt": "git branch -d"}},
+      "expect": {"risk": "destructive", "possible": true, "how": ["Delete merged branches"]}
+    },
+    {
+      "name": "destructive label is never lowered",
+      "reply": {"show": true, "next_step": {"title": "Restart the dev server", "how": ["Stop it"]}, "confidence": 0.8, "automation": {"possible": true, "tool": "shell", "risk": "destructive", "effect": "Restarts", "agent_prompt": "restart"}},
+      "expect": {"risk": "destructive", "possible": true, "how": ["Stop it"]}
+    },
+    {
+      "name": "risk words in the agent prompt count",
+      "reply": {"show": true, "next_step": {"title": "Tidy the build folder", "how": ["Clear it"]}, "confidence": 0.8, "automation": {"possible": true, "tool": "shell", "risk": "safe", "effect": "Cleans build", "agent_prompt": "rm -rf build"}},
+      "expect": {"risk": "destructive", "possible": true, "how": ["Clear it"]}
+    },
+    {
+      "name": "substrings are not risk words",
+      "reply": {"show": true, "next_step": {"title": "Open the dropdown", "how": ["Pick the postgres payload option"]}, "confidence": 0.8, "automation": {"possible": true, "tool": "browser", "risk": "safe", "effect": "Selects an option", "agent_prompt": "select it"}},
+      "expect": {"risk": "safe", "possible": true, "how": ["Pick the postgres payload option"]}
+    },
+    {
+      "name": "unknown risk label is outward",
+      "reply": {"show": true, "next_step": {"title": "Restart the dev server", "how": ["Stop it"]}, "confidence": 0.8, "automation": {"possible": true, "tool": "shell", "risk": "low", "effect": "Restarts", "agent_prompt": "restart"}},
+      "expect": {"risk": "outward", "possible": true, "how": ["Stop it"]}
+    },
+    {
+      "name": "schema echo tool disables automation",
+      "reply": {"show": true, "next_step": {"title": "Restart the dev server", "how": ["Stop it"]}, "confidence": 0.8, "automation": {"possible": true, "tool": "browser | connection:<id> | shell | files | none", "risk": "safe", "effect": "Restarts", "agent_prompt": "restart"}},
+      "expect": {"risk": "safe", "possible": false, "how": ["Stop it"]}
+    }
+  ]
+}

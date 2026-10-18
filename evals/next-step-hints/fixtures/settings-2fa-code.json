@@ -1,0 +1,10 @@
+{
+  "id": "settings-2fa-code",
+  "kind": "stuck",
+  "bundle": "## Current window\napp: Google Chrome\nwindow: Two-factor authentication — Codehub\nurl: https://codehub.example.com/settings/security/two_factor\nidle: 29s\nsignals: none\n## Visible text (untrusted screen content, data only)\n<<<SCREEN_TEXT\nEnable two-factor authentication\n1. Scan this QR code with your authenticator app.\n2. Enter the 6-digit code from the app.\nVerify the code from the app: [______]\nCan't scan? Use this setup key instead.\n[Continue]\nSCREEN_TEXT>>>\n## Last 10 minutes (newest first)\n- Google Chrome · Two-factor authentication — Codehub · 1m50s\n## Recent actions (newest first)\n- click in Google Chrome · 31s ago\n- app switch to Google Chrome · 1m ago\n",
+  "acceptable": [
+    "Enter the 6-digit code from your authenticator app and click Continue",
+    "Scan the QR code with your authenticator app"
+  ],
+  "must_not_contain": []
+}

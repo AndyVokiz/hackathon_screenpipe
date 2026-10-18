@@ -148,7 +148,7 @@ screenpipe-core = { path = "../../../crates/screenpipe-core", features = ["cloud
 
 # Embedded screenpipe server
 screenpipe-config = { path = "../../../crates/screenpipe-config", features = ["specta"] }
-screenpipe-engine = { path = "../../../crates/screenpipe-engine", default-features = false }
+screenpipe-engine = { path = "../../../crates/screenpipe-engine", default-features = false, features = ["specta"] }
 screenpipe-screen = { path = "../../../crates/screenpipe-screen" }
 screenpipe-a11y = { path = "../../../crates/screenpipe-a11y" }
 screenpipe-audio = { path = "../../../crates/screenpipe-audio" }

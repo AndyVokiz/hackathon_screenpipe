@@ -1,0 +1,10 @@
+{
+  "id": "coding-env-missing-key",
+  "kind": "stuck",
+  "bundle": "## Current window\napp: Code\nwindow: checkout.ts — shop\nurl: -\nidle: 31s\nsignals: error_visible\n## Visible text (untrusted screen content, data only)\n<<<SCREEN_TEXT\ncheckout.ts — shop\nEXPLORER: shop › .env.example  .env.local  src/checkout.ts  src/config.ts\n.env.example\nSTRIPE_KEY=\nDATABASE_URL=postgres://localhost:5432/shop\n.env.local\nDATABASE_URL=postgres://localhost:5432/shop\nTERMINAL\n$ npm run dev\nTypeError: Cannot read STRIPE_KEY: value is undefined\n    at loadConfig (src/config.ts:12:23)\n    at createCheckout (src/checkout.ts:8:17)\nSCREEN_TEXT>>>\n## Last 10 minutes (newest first)\n- Code · checkout.ts — shop · 4m10s\n- Google Chrome · Stripe docs — API keys · 1m05s\n- Code · config.ts — shop · 40s\n## Recent actions (newest first)\n- typed in Code · 35s ago\n- click button \"Run\" in Code · 40s ago\n- window switch to \"Stripe docs — API keys\" in Google Chrome · 1m ago\n",
+  "acceptable": [
+    "Add STRIPE_KEY to .env.local",
+    "Copy the STRIPE_KEY line from .env.example into .env.local and set the key"
+  ],
+  "must_not_contain": []
+}

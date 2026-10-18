@@ -254,7 +254,10 @@ static REQUIRED_PI_PACKAGE_INSTALL_LOCK: std::sync::OnceLock<Mutex<()>> =
 static PI_EXTENSION_SAFE_MODE_PROJECTS: std::sync::OnceLock<std::sync::Mutex<HashSet<String>>> =
     std::sync::OnceLock::new();
 
-const MANAGED_PI_EXTENSION_FILES: [&str; 9] = [
+const MANAGED_PI_EXTENSION_FILES: [&str; 10] = [
+    // Must load even in safe mode: a next-step run without its guard would
+    // act unchecked (the executor also refuses to prompt until it loads).
+    "next-step-guard.ts",
     "web-search.ts",
     "mcp-bridge.ts",
     "save-artifact.ts",
@@ -7949,6 +7952,24 @@ error: InstallFailed extracting tarball"#;
         assert!(args.iter().any(|arg| arg.ends_with("context-pruning.ts")));
         assert!(args.iter().any(|arg| arg.ends_with("workflow-feedback.ts")));
         assert!(!args.iter().any(|arg| arg.ends_with("third-party.ts")));
+    }
+
+    #[test]
+    fn next_step_guard_still_loads_in_extension_safe_mode() {
+        let temp = tempfile::tempdir().unwrap();
+        let extension_dir = temp.path().join(".pi").join("extensions");
+        std::fs::create_dir_all(&extension_dir).unwrap();
+        std::fs::write(extension_dir.join("next-step-guard.ts"), "export default {};").unwrap();
+
+        let mut command = Command::new("pi");
+        super::apply_pi_extension_safe_mode(&mut command, temp.path().to_str().unwrap());
+        let args = command
+            .get_args()
+            .map(|arg| arg.to_string_lossy().into_owned())
+            .collect::<Vec<_>>();
+
+        assert_eq!(args[0], "--no-extensions");
+        assert!(args.iter().any(|arg| arg.ends_with("next-step-guard.ts")));
     }
 
     #[test]

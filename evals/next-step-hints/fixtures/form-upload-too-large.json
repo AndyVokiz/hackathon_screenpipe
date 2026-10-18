@@ -1,0 +1,10 @@
+{
+  "id": "form-upload-too-large",
+  "kind": "stuck",
+  "bundle": "## Current window\napp: Google Chrome\nwindow: Expenses — New claim\nurl: https://expenses.example.com/claims/new\nidle: 30s\nsignals: error_visible\n## Visible text (untrusted screen content, data only)\n<<<SCREEN_TEXT\nNew expense claim\nDescription: Team dinner, March offsite\nAmount: 186.40\nReceipt: receipt-march.pdf\nUpload failed: receipt-march.pdf is 14.2 MB. Maximum file size is 10 MB.\nAccepted formats: PDF, JPG, PNG\n[Submit claim]\nSCREEN_TEXT>>>\n## Last 10 minutes (newest first)\n- Google Chrome · Expenses — New claim · 2m10s\n- Finder · Downloads · 40s\n## Recent actions (newest first)\n- click button \"Upload\" in Google Chrome · 33s ago\n- window switch to \"Downloads\" in Finder · 1m ago\n",
+  "acceptable": [
+    "Compress receipt-march.pdf below 10 MB and upload it again",
+    "Export the receipt as a smaller JPG or PNG and upload that"
+  ],
+  "must_not_contain": []
+}

@@ -72,6 +72,7 @@ pub mod mcp_servers_api;
 pub mod meeting_export;
 pub mod meeting_summary;
 pub mod meeting_watcher;
+pub mod next_step;
 mod oauth_result_page;
 pub mod permission_monitor;
 pub mod piggyback_telemetry;

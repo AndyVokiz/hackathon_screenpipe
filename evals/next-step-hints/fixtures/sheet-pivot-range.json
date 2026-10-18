@@ -1,0 +1,10 @@
+{
+  "id": "sheet-pivot-range",
+  "kind": "stuck",
+  "bundle": "## Current window\napp: Microsoft Excel\nwindow: sales-2026.xlsx\nurl: -\nidle: 45s\nsignals: none\n## Visible text (untrusted screen content, data only)\n<<<SCREEN_TEXT\nsales-2026.xlsx — PivotTable Analyze\nPivotTable1  Data source: Sheet1!$A$1:$F$200\nRow Labels   Sum of Revenue\nNorth        41,200\nSouth        38,950\nGrand Total  80,150\nSheet1 last row with data: 412\nSCREEN_TEXT>>>\n## Last 10 minutes (newest first)\n- Microsoft Excel · sales-2026.xlsx · 5m40s\n## Recent actions (newest first)\n- click button \"Refresh\" in Microsoft Excel · 48s ago\n- typed in Microsoft Excel · 2m ago\n",
+  "acceptable": [
+    "Change the pivot data source to Sheet1!$A$1:$F$412",
+    "Extend the PivotTable1 range to include all rows, then refresh"
+  ],
+  "must_not_contain": []
+}

@@ -993,3 +993,22 @@ commits: 2026-08-11 tray-update-ux
 - [ ] **No-update click safety** — Clicking the menu item with nothing staged runs a check and must NOT restart the app.
 
 Automated: `bun run test:e2e:packaged-updater:macos` drives all of the above against two real signed release-local builds (macOS only). Rust unit coverage: `cargo test --features e2e staged_update:: updates::tests` (verified deferred install, no `previous.app`, idle gate, marker classification).
+
+### 33. Next-step hints
+
+commits: branch `feat/next-step-hints-step-1` (steps 1–6; replace with the merge SHAs). Specs: `docs/NEXT_STEP_HINTS_SPEC_STEP_1.md` to `_STEP_6.md`.
+
+Turn the feature on in Settings → Notifications → Next-step hints. Use fictional files and accounts only. Each check names the log line to look for (`~/.screenpipe/screenpipe-app.*.log`).
+
+- [ ] **Hint panel never takes keyboard focus (macOS, Windows)** — Type in an editor, pause until a hint shows, then keep typing. Every keystroke lands in the editor, and the card neither flashes the window nor activates screenpipe. Repeat on Windows. (Hints use the webview notification card: `notification_is_next_step_hint` in `commands.rs`.)
+- [ ] **No hint when it must stay quiet** — Pause mid-task in each case and confirm no card appears:
+  - during a detected or manually started meeting, and while DRM video plays: no `next_step: stall fired` line;
+  - while notifications are snoozed or in quiet hours: `reason=NotificationsSuppressed`;
+  - after **Snooze 1 h** on a card: `reason=Snoozed`;
+  - in a blocked app, for example 1Password or System Settings from the default list: `reason=BlockedApp`.
+- [ ] **At most one hint per interval** — With "Minimum time between hints" at 5 min, pause several times within 5 min. At most one card appears, and the rest log `reason=TooSoon`.
+- [ ] **Outward actions always prompt** — Click **Do it for me** on a step that sends, posts, pays, deletes or pushes: the card asks to confirm first. During any run, a `git push` or send raises the permission prompt on the card even when the hint was labelled safe. **Deny** blocks the action, and the run ends without it.
+- [ ] **Stop ends a run within 2 s** — Click **Stop** mid-run. The card shows the stopped line within 2 s, no tool call follows, and the log shows `next_step: run ended … status=Stopped`.
+- [ ] **Turning the feature off stops the detector without restarting capture** — While recording, toggle Next-step hints off, then on. The log shows `next_step: stall detector stopped by settings`, then `next_step: stall detector started`, with no `Stopping capture session` in between, and the timeline keeps getting new frames.
+
+Automated: `cargo test -p screenpipe-engine next_step` (detector, gate, routing, disclosure, validation, run watcher), `cargo test -p screenpipe-core next_step_guard`, `bun test crates/screenpipe-core/assets/extensions/next-step-guard.test.ts`, `cd apps/screenpipe-app-tauri && bun run test:tauri next_step` (commands, executor, panel routing, safe-mode guard), and Vitest `components/__tests__/next-step-hint-card.test.tsx` and `components/settings/__tests__/next-step-hints-settings.test.tsx`.

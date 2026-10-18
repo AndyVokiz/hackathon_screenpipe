@@ -262,6 +262,71 @@ where
         .collect())
 }
 
+/// Apps where a next-step hint would read or act on credentials or system
+/// configuration. Users can edit the list; these are only the defaults.
+pub const DEFAULT_NEXT_STEP_BLOCKED_APPS: &[&str] = &[
+    "1Password",
+    "Bitwarden",
+    "KeePassXC",
+    "Keychain Access",
+    "System Settings",
+    "System Preferences",
+    "Settings",
+    "Credential Manager",
+];
+
+/// Next-step hints: when the user pauses mid-task, suggest the next step.
+///
+/// Off by default. Read the clamped values through [`Self::pause_ms`] and
+/// [`Self::min_interval_ms`]; the raw fields hold whatever the user saved.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
+#[serde(rename_all = "camelCase", default)]
+pub struct NextStepHintsSettings {
+    pub enabled: bool,
+    /// Seconds without input before a pause counts as a stall.
+    pub pause_seconds: u16,
+    /// Minimum minutes between two shown hints.
+    pub min_interval_minutes: u16,
+    /// Whether "Do it for me" may start an agent run.
+    pub allow_auto_execute: bool,
+    /// Apps that never get hints (case-insensitive substring match).
+    pub blocked_apps: Vec<String>,
+}
+
+impl NextStepHintsSettings {
+    pub const PAUSE_SECONDS_RANGE: std::ops::RangeInclusive<u16> = 10..=60;
+    pub const MIN_INTERVAL_MINUTES_RANGE: std::ops::RangeInclusive<u16> = 1..=120;
+
+    pub fn pause_ms(&self) -> u64 {
+        let range = Self::PAUSE_SECONDS_RANGE;
+        u64::from(self.pause_seconds.clamp(*range.start(), *range.end())) * 1_000
+    }
+
+    pub fn min_interval_ms(&self) -> i64 {
+        let range = Self::MIN_INTERVAL_MINUTES_RANGE;
+        i64::from(
+            self.min_interval_minutes
+                .clamp(*range.start(), *range.end()),
+        ) * 60_000
+    }
+}
+
+impl Default for NextStepHintsSettings {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            pause_seconds: 20,
+            min_interval_minutes: 5,
+            allow_auto_execute: true,
+            blocked_apps: DEFAULT_NEXT_STEP_BLOCKED_APPS
+                .iter()
+                .map(|app| app.to_string())
+                .collect(),
+        }
+    }
+}
+
 /// The single source of truth for recording/capture configuration.
 ///
 /// Used by:
@@ -855,6 +920,10 @@ pub struct RecordingSettings {
     #[serde(rename = "enableWorkflowEvents", default)]
     pub enable_workflow_events: bool,
 
+    /// Next-step hints shown when the user pauses mid-task. Off by default.
+    #[serde(rename = "nextStepHints", default)]
+    pub next_step_hints: NextStepHintsSettings,
+
     /// Detected hardware tier ("high", "mid", "low").
     /// Set once on first launch; `None` for existing installs (treated as High).
     #[serde(
@@ -1021,6 +1090,7 @@ impl Default for RecordingSettings {
             analytics_enabled: true,
             analytics_id: String::new(),
             enable_workflow_events: false,
+            next_step_hints: NextStepHintsSettings::default(),
             device_tier: None,
             schedule_enabled: false,
             schedule_rules: vec![],
@@ -1660,5 +1730,85 @@ mod recording_detail_tests {
             serde_json::json!({"recordingDetail": "unbounded"})
         )
         .is_err());
+    }
+}
+
+#[cfg(test)]
+mod next_step_hints_tests {
+    use super::*;
+
+    #[test]
+    fn next_step_hints_missing_key_loads_off_defaults() {
+        let settings: RecordingSettings = serde_json::from_str("{}").unwrap();
+        let hints = settings.next_step_hints;
+        assert_eq!(hints, NextStepHintsSettings::default());
+        assert!(!hints.enabled);
+        assert_eq!(hints.pause_ms(), 20_000);
+        assert_eq!(hints.min_interval_ms(), 5 * 60_000);
+        assert!(hints.allow_auto_execute);
+        assert!(hints.blocked_apps.iter().any(|app| app == "1Password"));
+    }
+
+    #[test]
+    fn next_step_hints_partial_object_keeps_other_defaults() {
+        let settings: RecordingSettings =
+            serde_json::from_value(serde_json::json!({"nextStepHints": {"enabled": true}}))
+                .unwrap();
+        assert!(settings.next_step_hints.enabled);
+        assert_eq!(settings.next_step_hints.pause_seconds, 20);
+        assert_eq!(
+            settings.next_step_hints.blocked_apps,
+            NextStepHintsSettings::default().blocked_apps
+        );
+    }
+
+    #[test]
+    fn next_step_hints_round_trip_keeps_every_field() {
+        let settings = RecordingSettings {
+            next_step_hints: NextStepHintsSettings {
+                enabled: true,
+                pause_seconds: 40,
+                min_interval_minutes: 15,
+                allow_auto_execute: false,
+                blocked_apps: vec!["Banking".to_string()],
+            },
+            ..Default::default()
+        };
+        let value = serde_json::to_value(&settings).unwrap();
+        assert_eq!(
+            value["nextStepHints"],
+            serde_json::json!({
+                "enabled": true,
+                "pauseSeconds": 40,
+                "minIntervalMinutes": 15,
+                "allowAutoExecute": false,
+                "blockedApps": ["Banking"],
+            })
+        );
+        let back: RecordingSettings = serde_json::from_value(value).unwrap();
+        assert_eq!(back.next_step_hints, settings.next_step_hints);
+
+        let toml_text = toml::to_string_pretty(&settings).unwrap();
+        let from_toml: RecordingSettings = toml::from_str(&toml_text).unwrap();
+        assert_eq!(from_toml.next_step_hints, settings.next_step_hints);
+    }
+
+    #[test]
+    fn next_step_hints_clamp_out_of_range_values() {
+        let low = NextStepHintsSettings {
+            pause_seconds: 0,
+            min_interval_minutes: 0,
+            ..Default::default()
+        };
+        assert_eq!(low.pause_ms(), 10_000);
+        assert_eq!(low.min_interval_ms(), 60_000);
+
+        let high = NextStepHintsSettings {
+            pause_seconds: u16::MAX,
+            min_interval_minutes: u16::MAX,
+            ..Default::default()
+        };
+        assert_eq!(high.pause_ms(), 60_000);
+        assert_eq!(high.min_interval_ms(), 120 * 60_000);
     }
 }

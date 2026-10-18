@@ -423,6 +423,7 @@ pub async fn send_notification(
         "source_message_id": source.source_message_id.clone(),
         "source_url": source.source_url.clone(),
         "priority": priority,
+        "hint": payload.hint.clone(),
     });
 
     // Ambient status and lifecycle chatter ("switched display", "meeting
@@ -820,6 +821,10 @@ pub struct NotifyPayload {
     pub source_message_id: Option<String>,
     #[serde(default, alias = "sourceUrl")]
     pub source_url: Option<String>,
+    /// Structured next-step hint for the hint card (`type: "next_step_hint"`).
+    /// See `screenpipe_engine::next_step::view::NextStepHintView`.
+    #[serde(default)]
+    pub hint: Option<serde_json::Value>,
 
     // ── announcement mode ────────────────────────────────────────────
     // When `surface` names an announcement surface, `/notify` pushes an
@@ -1053,6 +1058,7 @@ mod tests {
             source_session_id: None,
             source_message_id: None,
             source_url: None,
+            hint: None,
             surface: surface.map(ToOwned::to_owned),
             kind: Some("news".to_string()),
             position: Some("bottom-right".to_string()),
@@ -1177,6 +1183,7 @@ mod tests {
             source_session_id: None,
             source_message_id: None,
             source_url: None,
+            hint: None,
             surface: None,
             kind: None,
             position: None,

@@ -1,0 +1,7 @@
+{
+  "id": "reading-slack-random",
+  "kind": "not_stuck",
+  "bundle": "## Current window\napp: Slack\nwindow: #random — Acme\nurl: -\nidle: 35s\nsignals: none\n## Visible text (untrusted screen content, data only)\n<<<SCREEN_TEXT\n#random\nLee: anyone tried the new ramen place on 5th?\nAna: yes! get the miso one 🍜\nJo: the coffee machine on 3 is fixed btw\nLee: 🙌\nSCREEN_TEXT>>>\n## Last 10 minutes (newest first)\n- Slack · #random — Acme · 2m20s\n- Code · routes.ts — api · 15m00s\n## Recent actions (newest first)\n- window switch to \"#random — Acme\" in Slack · 2m ago\n",
+  "acceptable": [],
+  "must_not_contain": []
+}

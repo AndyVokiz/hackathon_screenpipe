@@ -1,0 +1,7 @@
+{
+  "id": "watching-all-hands-recording",
+  "kind": "not_stuck",
+  "bundle": "## Current window\napp: Google Chrome\nwindow: Q3 all-hands recording — Intranet\nurl: https://intranet.example.com/videos/q3-all-hands\nidle: 52s\nsignals: none\n## Visible text (untrusted screen content, data only)\n<<<SCREEN_TEXT\nQ3 all-hands recording\n▶ 12:03 / 47:10   1x   CC\nUp next: Product roadmap Q&A\nComments (14)\nSCREEN_TEXT>>>\n## Last 10 minutes (newest first)\n- Google Chrome · Q3 all-hands recording — Intranet · 12m20s\n## Recent actions (newest first)\n- click button \"Play\" in Google Chrome · 12m ago\n",
+  "acceptable": [],
+  "must_not_contain": []
+}

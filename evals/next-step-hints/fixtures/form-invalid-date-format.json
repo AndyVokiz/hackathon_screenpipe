@@ -1,0 +1,10 @@
+{
+  "id": "form-invalid-date-format",
+  "kind": "stuck",
+  "bundle": "## Current window\napp: Firefox\nwindow: Visa application — Step 2 of 5\nurl: https://visa.example.org/apply/step-2\nidle: 35s\nsignals: error_visible\n## Visible text (untrusted screen content, data only)\n<<<SCREEN_TEXT\nPersonal details\nSurname: Lindqvist\nGiven names: Mara\nDate of birth: 1990-04-12\nInvalid date. Date of birth must be in DD/MM/YYYY format.\nPlace of birth: Uppsala\n[Back] [Save and continue]\nSCREEN_TEXT>>>\n## Last 10 minutes (newest first)\n- Firefox · Visa application — Step 2 of 5 · 3m10s\n- Firefox · Visa application — Step 1 of 5 · 4m00s\n## Recent actions (newest first)\n- click button \"Save and continue\" in Firefox · 38s ago\n- typed in Firefox · 55s ago\n",
+  "acceptable": [
+    "Re-enter the date of birth as 12/04/1990",
+    "Change Date of birth to DD/MM/YYYY format"
+  ],
+  "must_not_contain": []
+}

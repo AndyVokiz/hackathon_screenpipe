@@ -614,6 +614,51 @@ pub(crate) fn pi_event_protocol_error(event: &serde_json::Value) -> Option<&'sta
     (!has_executable_call).then_some(MALFORMED_TOOL_USE_ERROR)
 }
 
+/// One "Do it for me" run of a next-step hint, as the guard extension reads
+/// it from `.pi/next-step-guard.json`.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NextStepGuardConfig {
+    pub hint_id: String,
+    /// Fresh per run; the guard writes it to `.pi/next-step-guard.ack` once
+    /// loaded, and the app does not prompt the agent before it sees it.
+    pub run_id: String,
+    /// `safe`, `outward` or `destructive`.
+    pub risk: String,
+    /// Absolute paths the agent may edit without asking.
+    pub allowed_paths: Vec<String>,
+    /// Unix ms after which every tool call is blocked.
+    pub deadline_ms: i64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub ask_timeout_ms: Option<u64>,
+}
+
+pub const NEXT_STEP_GUARD_FILE: &str = "next-step-guard.ts";
+pub const NEXT_STEP_GUARD_ACK: &str = "next-step-guard.ack";
+
+/// Install the next-step guard extension and its run config into
+/// `project_dir`, removing any acknowledgement from an earlier run. Only for
+/// the next-step project dir: the guard asks before almost every action.
+pub fn ensure_next_step_guard(project_dir: &Path, cfg: &NextStepGuardConfig) -> Result<()> {
+    let pi_dir = project_dir.join(".pi");
+    let ext_dir = pi_dir.join("extensions");
+    std::fs::create_dir_all(&ext_dir)?;
+    std::fs::write(
+        ext_dir.join(NEXT_STEP_GUARD_FILE),
+        include_str!("../../assets/extensions/next-step-guard.ts"),
+    )?;
+    std::fs::write(
+        pi_dir.join("next-step-guard.json"),
+        serde_json::to_vec_pretty(cfg)?,
+    )?;
+    match std::fs::remove_file(pi_dir.join(NEXT_STEP_GUARD_ACK)) {
+        Err(error) if error.kind() != std::io::ErrorKind::NotFound => return Err(error.into()),
+        _ => {}
+    }
+    debug!("next-step guard installed at {:?}", ext_dir);
+    Ok(())
+}
+
 /// Pi agent executor.
 pub struct PiExecutor {
     /// Screenpipe cloud token (for LLM calls via screenpipe proxy).
@@ -4679,6 +4724,61 @@ pub fn ensure_bash_available() -> Option<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn next_step_guard_writes_extension_and_config_and_overwrites_config() {
+        let temp = tempfile::tempdir().unwrap();
+        let cfg = NextStepGuardConfig {
+            hint_id: "hint-1".to_string(),
+            run_id: "run-1".to_string(),
+            risk: "safe".to_string(),
+            allowed_paths: vec!["/Users/me/code/shop/.env.local".to_string()],
+            deadline_ms: 1_800_000_000_000,
+            ask_timeout_ms: None,
+        };
+        std::fs::create_dir_all(temp.path().join(".pi")).unwrap();
+        std::fs::write(temp.path().join(".pi").join(NEXT_STEP_GUARD_ACK), "old-run").unwrap();
+
+        ensure_next_step_guard(temp.path(), &cfg).unwrap();
+        let extension = std::fs::read_to_string(
+            temp.path()
+                .join(".pi")
+                .join("extensions")
+                .join(NEXT_STEP_GUARD_FILE),
+        )
+        .unwrap();
+        assert!(extension.contains("acp:permission:next_step_action"));
+        let config_path = temp.path().join(".pi").join("next-step-guard.json");
+        let written: serde_json::Value =
+            serde_json::from_str(&std::fs::read_to_string(&config_path).unwrap()).unwrap();
+        assert_eq!(
+            written,
+            json!({
+                "hintId": "hint-1",
+                "runId": "run-1",
+                "risk": "safe",
+                "allowedPaths": ["/Users/me/code/shop/.env.local"],
+                "deadlineMs": 1_800_000_000_000_i64
+            })
+        );
+        assert!(
+            !temp.path().join(".pi").join(NEXT_STEP_GUARD_ACK).exists(),
+            "a stale acknowledgement must not satisfy the next run"
+        );
+
+        let second = NextStepGuardConfig {
+            run_id: "run-2".to_string(),
+            risk: "outward".to_string(),
+            allowed_paths: vec![],
+            ..cfg
+        };
+        ensure_next_step_guard(temp.path(), &second).unwrap();
+        let written: serde_json::Value =
+            serde_json::from_str(&std::fs::read_to_string(&config_path).unwrap()).unwrap();
+        assert_eq!(written["runId"], "run-2");
+        assert_eq!(written["risk"], "outward");
+        assert_eq!(written["allowedPaths"], json!([]));
+    }
 
     #[test]
     fn pi_prompt_input_preserves_long_user_and_system_roles() {

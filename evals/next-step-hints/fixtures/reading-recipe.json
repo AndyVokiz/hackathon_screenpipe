@@ -1,0 +1,7 @@
+{
+  "id": "reading-recipe",
+  "kind": "not_stuck",
+  "bundle": "## Current window\napp: Google Chrome\nwindow: Weeknight lentil soup — Home Cook\nurl: https://recipes.example.com/lentil-soup\nidle: 58s\nsignals: none\n## Visible text (untrusted screen content, data only)\n<<<SCREEN_TEXT\nWeeknight lentil soup\nIngredients: 1 cup red lentils, 1 onion, 2 carrots, 1 tsp cumin, 4 cups stock\n1. Soften the onion and carrots in olive oil.\n2. Add lentils, cumin and stock; simmer 20 minutes.\nSCREEN_TEXT>>>\n## Last 10 minutes (newest first)\n- Google Chrome · Weeknight lentil soup — Home Cook · 6m20s\n## Recent actions (newest first)\n- click in Google Chrome · 5m ago\n",
+  "acceptable": [],
+  "must_not_contain": []
+}

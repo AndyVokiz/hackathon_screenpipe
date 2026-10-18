@@ -605,6 +605,81 @@ fn record_ui_event_flush(n: u64) {
     UI_RECORDER_LAST_EVENT_UNIX.store(now, Ordering::Relaxed);
 }
 
+/// Last-input timestamps (unix ms) and a running count of deliberate input
+/// events, for pause detection (`crate::next_step`). Zero means "never".
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct InputClock {
+    /// Any input, including mouse moves.
+    pub last_ms: u64,
+    pub last_key_ms: u64,
+    pub last_scroll_ms: u64,
+    /// Monotonic count of deliberate input events (mouse moves excluded).
+    pub events: u64,
+}
+
+/// Stamped for every raw input event before ignore filtering and persistence
+/// gating, so it tracks user presence even when keyboard rows are not stored.
+/// Relaxed atomic stores only: this runs once per input event.
+struct InputClockCell {
+    last_ms: AtomicU64,
+    last_key_ms: AtomicU64,
+    last_scroll_ms: AtomicU64,
+    events: AtomicU64,
+}
+
+impl InputClockCell {
+    const fn new() -> Self {
+        Self {
+            last_ms: AtomicU64::new(0),
+            last_key_ms: AtomicU64::new(0),
+            last_scroll_ms: AtomicU64::new(0),
+            events: AtomicU64::new(0),
+        }
+    }
+
+    fn stamp(&self, kind: &screenpipe_db::UiEventType, now_ms: u64) {
+        use screenpipe_db::UiEventType;
+        self.last_ms.store(now_ms, Ordering::Relaxed);
+        match kind {
+            UiEventType::Move => return,
+            UiEventType::Key | UiEventType::Text => {
+                self.last_key_ms.store(now_ms, Ordering::Relaxed);
+            }
+            UiEventType::Scroll => {
+                self.last_scroll_ms.store(now_ms, Ordering::Relaxed);
+            }
+            UiEventType::Click
+            | UiEventType::AppSwitch
+            | UiEventType::WindowFocus
+            | UiEventType::Clipboard => {}
+        }
+        self.events.fetch_add(1, Ordering::Relaxed);
+    }
+
+    fn snapshot(&self) -> InputClock {
+        InputClock {
+            last_ms: self.last_ms.load(Ordering::Relaxed),
+            last_key_ms: self.last_key_ms.load(Ordering::Relaxed),
+            last_scroll_ms: self.last_scroll_ms.load(Ordering::Relaxed),
+            events: self.events.load(Ordering::Relaxed),
+        }
+    }
+}
+
+static INPUT_CLOCK: InputClockCell = InputClockCell::new();
+
+pub(crate) fn unix_now_ms() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_millis() as u64)
+        .unwrap_or(0)
+}
+
+/// Current input clock. Four relaxed loads; safe to call from any thread.
+pub fn input_clock() -> InputClock {
+    INPUT_CLOCK.snapshot()
+}
+
 /// Read the latest UI recorder status snapshot.
 pub fn ui_recorder_status_snapshot() -> UiRecorderStatus {
     let last = UI_RECORDER_LAST_EVENT_UNIX.load(Ordering::Relaxed);
@@ -900,6 +975,7 @@ pub async fn start_ui_recording(
             match handle.recv_timeout(recv_timeout) {
                 Some(event) => {
                     let db_event = event.to_db_insert(Some(session_id.clone()));
+                    INPUT_CLOCK.stamp(&db_event.event_type, unix_now_ms());
                     cancel_scroll_on_focus_change(
                         &mut scroll_burst,
                         &db_event,
@@ -2461,6 +2537,52 @@ mod scroll_burst_tests {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn input_clock_stamps_the_right_fields_per_event_type() {
+        use screenpipe_db::UiEventType;
+
+        let cell = InputClockCell::new();
+        assert_eq!(cell.snapshot(), InputClock::default());
+
+        cell.stamp(&UiEventType::Move, 100);
+        assert_eq!(
+            cell.snapshot(),
+            InputClock {
+                last_ms: 100,
+                ..Default::default()
+            },
+            "mouse moves mark presence but are not deliberate events"
+        );
+
+        for (kind, at) in [(UiEventType::Key, 200), (UiEventType::Text, 210)] {
+            cell.stamp(&kind, at);
+            let clock = cell.snapshot();
+            assert_eq!(clock.last_ms, at);
+            assert_eq!(clock.last_key_ms, at);
+        }
+
+        cell.stamp(&UiEventType::Scroll, 300);
+        let clock = cell.snapshot();
+        assert_eq!(clock.last_scroll_ms, 300);
+        assert_eq!(clock.last_key_ms, 210);
+
+        for (kind, at) in [
+            (UiEventType::Click, 400),
+            (UiEventType::AppSwitch, 410),
+            (UiEventType::WindowFocus, 420),
+            (UiEventType::Clipboard, 430),
+        ] {
+            cell.stamp(&kind, at);
+            let clock = cell.snapshot();
+            assert_eq!(clock.last_ms, at);
+            assert_eq!(clock.last_key_ms, 210);
+            assert_eq!(clock.last_scroll_ms, 300);
+        }
+
+        // Key, Text, Scroll, Click, AppSwitch, WindowFocus, Clipboard.
+        assert_eq!(cell.snapshot().events, 7);
+    }
 
     #[test]
     fn window_focus_capture_is_always_enabled() {

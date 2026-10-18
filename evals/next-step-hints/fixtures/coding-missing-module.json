@@ -1,0 +1,10 @@
+{
+  "id": "coding-missing-module",
+  "kind": "stuck",
+  "bundle": "## Current window\napp: Terminal\nwindow: zsh — api\nurl: -\nidle: 22s\nsignals: error_visible\n## Visible text (untrusted screen content, data only)\n<<<SCREEN_TEXT\n~/code/api main\n$ npm run dev\n> api@1.4.0 dev\n> tsx watch src/server.ts\nError: Cannot find module 'zod'\nRequire stack:\n- /Users/sam/code/api/src/schemas/user.ts\n- /Users/sam/code/api/src/server.ts\nNode.js v20.11.0\nSCREEN_TEXT>>>\n## Last 10 minutes (newest first)\n- Terminal · zsh — api · 2m20s\n- Code · user.ts — api · 3m30s\n## Recent actions (newest first)\n- typed in Terminal · 30s ago\n- window switch to \"zsh — api\" in Terminal · 45s ago\n- typed in Code · 1m ago\n",
+  "acceptable": [
+    "Install zod with npm install zod",
+    "Run npm install zod in ~/code/api"
+  ],
+  "must_not_contain": []
+}

@@ -1,0 +1,7 @@
+{
+  "id": "reading-research-pdf",
+  "kind": "not_stuck",
+  "bundle": "## Current window\napp: Preview\nwindow: sparse-attention-survey.pdf (page 7 of 31)\nurl: -\nidle: 55s\nsignals: none\n## Visible text (untrusted screen content, data only)\n<<<SCREEN_TEXT\n3.2 Local windows\nA common way to reduce the quadratic cost of attention is to restrict each token to a fixed window of neighbours. This trades long-range context for linear memory.\nTable 2: Memory use by sequence length.\nSCREEN_TEXT>>>\n## Last 10 minutes (newest first)\n- Preview · sparse-attention-survey.pdf (page 7 of 31) · 10m00s\n## Recent actions (newest first)\n- click in Preview · 5m ago\n",
+  "acceptable": [],
+  "must_not_contain": []
+}

@@ -1,0 +1,10 @@
+{
+  "id": "email-bounce-typo",
+  "kind": "stuck",
+  "bundle": "## Current window\napp: Mail\nwindow: Undeliverable: Q3 deck\nurl: -\nidle: 30s\nsignals: none\n## Visible text (untrusted screen content, data only)\n<<<SCREEN_TEXT\nFrom: Mail Delivery Subsystem\nSubject: Undeliverable: Q3 deck\nYour message wasn't delivered to jon.smiht@example.com because the address couldn't be found.\nOriginal message: \"Hi Jon, here is the Q3 deck for Friday.\"\nContacts › Jon Smith › jon.smith@example.com\nSCREEN_TEXT>>>\n## Last 10 minutes (newest first)\n- Mail · Undeliverable: Q3 deck · 1m00s\n- Contacts · Jon Smith · 25s\n## Recent actions (newest first)\n- window switch to \"Jon Smith\" in Contacts · 40s ago\n- click in Mail · 55s ago\n",
+  "acceptable": [
+    "Resend the Q3 deck email to jon.smith@example.com",
+    "Forward the original message to the correct address jon.smith@example.com"
+  ],
+  "must_not_contain": []
+}

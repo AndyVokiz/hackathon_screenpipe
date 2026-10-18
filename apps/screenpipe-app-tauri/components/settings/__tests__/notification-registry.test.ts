@@ -7,6 +7,7 @@ import {
   NOTIFICATION_GROUPS,
   NOTIFICATION_CATEGORIES,
   NOTIFICATION_CATEGORY_BY_ID,
+  BULK_CATEGORIES,
   DEFAULT_NOTIFICATION_PREFS,
   MASTER_NOTIFICATIONS_KEY,
   categoriesForGroup,
@@ -42,9 +43,27 @@ describe("notification registry", () => {
   it("derives defaults for every category plus master + mutedPipes", () => {
     expect(DEFAULT_NOTIFICATION_PREFS[MASTER_NOTIFICATIONS_KEY]).toBe(true);
     expect(DEFAULT_NOTIFICATION_PREFS.mutedPipes).toEqual([]);
-    for (const c of NOTIFICATION_CATEGORIES) {
+    for (const c of BULK_CATEGORIES) {
       expect(DEFAULT_NOTIFICATION_PREFS[c.id]).toBe(c.default);
     }
+  });
+
+  it("keeps opt-in features out of prefs, presets and group toggles", () => {
+    const optIn = NOTIFICATION_CATEGORIES.filter((c) => c.optIn);
+    expect(optIn.map((c) => c.id)).toEqual(["nextStepHints"]);
+    expect(NOTIFICATION_CATEGORY_BY_ID.nextStepHints).toMatchObject({
+      group: "automation",
+      default: false,
+    });
+    expect(BULK_CATEGORIES).toHaveLength(NOTIFICATION_CATEGORIES.length - 1);
+    expect(DEFAULT_NOTIFICATION_PREFS).not.toHaveProperty("nextStepHints");
+    for (const kind of ["all", "none", "recommended"] as const) {
+      expect(categoryValuesForPreset(kind)).not.toHaveProperty("nextStepHints");
+    }
+    // Automation reads "all" from its bulk categories alone.
+    expect(
+      groupState({ pipeNotifications: true, pipeAllowanceWarnings: true }, "automation")
+    ).toBe("all");
   });
 
   it("keeps experimental recording health alerts opt-in", () => {
@@ -88,7 +107,7 @@ describe("notification registry", () => {
     const all = categoryValuesForPreset("all");
     const none = categoryValuesForPreset("none");
     const rec = categoryValuesForPreset("recommended");
-    for (const c of NOTIFICATION_CATEGORIES) {
+    for (const c of BULK_CATEGORIES) {
       expect(all[c.id]).toBe(true);
       expect(none[c.id]).toBe(false);
       expect(rec[c.id]).toBe(c.default);

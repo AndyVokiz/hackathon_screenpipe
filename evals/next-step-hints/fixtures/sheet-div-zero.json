@@ -1,0 +1,10 @@
+{
+  "id": "sheet-div-zero",
+  "kind": "stuck",
+  "bundle": "## Current window\napp: Numbers\nwindow: Campaign results\nurl: -\nidle: 28s\nsignals: none\n## Visible text (untrusted screen content, data only)\n<<<SCREEN_TEXT\nCampaign results\n     A            B         C          D\n1    Campaign     Visits    Signups    Conversion rate\n4    Spring promo 1,240     62         5.0%\n5    Podcast ad   0         0          #DIV/0!\nD5   =C5/B5\nSCREEN_TEXT>>>\n## Last 10 minutes (newest first)\n- Numbers · Campaign results · 3m30s\n## Recent actions (newest first)\n- click in Numbers · 30s ago\n- typed in Numbers · 55s ago\n",
+  "acceptable": [
+    "Change D5 to =IF(B5=0, 0, C5/B5)",
+    "Wrap the D5 formula in IFERROR so zero visits show 0"
+  ],
+  "must_not_contain": []
+}

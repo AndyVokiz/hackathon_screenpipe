@@ -17,6 +17,7 @@ import {
   DEFAULT_NOTIFICATION_PREFS,
   DEFAULT_QUIET_HOURS,
   categoriesForGroup,
+  bulkCategoriesForGroup,
   categoryEnabled,
   groupState,
   categoryValuesForPreset,
@@ -26,6 +27,7 @@ import {
 } from "./notification-registry";
 import { NotificationPipeControls } from "./notification-pipe-controls";
 import { NotificationPauseControl } from "./notification-pause-control";
+import { NextStepHintsBlock, useNextStepHints } from "./next-step-hints-settings";
 import { useGT } from "gt-react";
 import { msg, useMessages } from "gt-react";
 import { localizeDefinitions } from "@/lib/i18n/definitions";
@@ -87,6 +89,7 @@ export function NotificationsSettings() {
   const { settings, updateSettings } = useSettings();
   const [query, setQuery] = React.useState("");
   const [pipesExpanded, setPipesExpanded] = React.useState(false);
+  const nextStep = useNextStepHints();
 
   if (!settings) return null;
 
@@ -235,20 +238,30 @@ export function NotificationsSettings() {
                   onCheckedChange={(v) =>
                     writeCategoryPatch(
                       Object.fromEntries(
-                        categoriesForGroup(group.id).map((c) => [c.id, v])
+                        bulkCategoriesForGroup(group.id).map((c) => [c.id, v])
                       )
                     )
                   }
                 />
               )}
             </div>
-            {categories.map((category) => (
+            {categories.map((category) => {
+              // Next-step hints keep their own settings object, not a pref.
+              const nextStepRow = category.id === "nextStepHints";
+              const nextStepOn = nextStep.hints?.enabled === true;
+              return (
               <CategoryRow
                 key={category.id}
                 category={category}
-                checked={categoryEnabled(prefs, category)}
-                disabled={false}
+                checked={
+                  nextStepRow ? nextStepOn : categoryEnabled(prefs, category)
+                }
+                disabled={nextStepRow && !nextStepOn && !nextStep.canEnable}
                 onToggle={(v) => {
+                  if (nextStepRow) {
+                    void nextStep.update({ enabled: v });
+                    return;
+                  }
                   if (category.mirrorsShowRestartNotifications) {
                     // legacy flag kept in sync so the engine watchdog agrees
                     updateSettings({
@@ -260,6 +273,7 @@ export function NotificationsSettings() {
                   writePrefs({ [category.id]: v });
                 }}
               >
+                {nextStepRow && <NextStepHintsBlock controller={nextStep} />}
                 {category.id === "meetingReminders" && (
                   <label className="mt-2 flex items-center gap-2 text-xs text-muted-foreground">
                     {ui("Remind me")}
@@ -316,7 +330,8 @@ export function NotificationsSettings() {
                   </div>
                 )}
               </CategoryRow>
-            ))}
+              );
+            })}
           </div>
           );
         })}

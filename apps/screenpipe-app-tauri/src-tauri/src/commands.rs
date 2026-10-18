@@ -4074,6 +4074,36 @@ fn notification_is_meeting_join(payload: &str) -> bool {
         })
 }
 
+/// Next-step hint cards are a React layout, so like join cards they always
+/// use the webview panel.
+fn notification_is_next_step_hint(payload: &str) -> bool {
+    serde_json::from_str::<serde_json::Value>(payload)
+        .ok()
+        .is_some_and(|value| {
+            value.get("type").and_then(|v| v.as_str())
+                == Some(screenpipe_engine::next_step::HINT_NOTIFICATION_TYPE)
+                && value.get("hint").is_some_and(serde_json::Value::is_object)
+        })
+}
+
+/// A hint card runs its own 45 s timer, then up to 10 min as a checklist.
+pub(crate) const NEXT_STEP_HINT_PANEL_MAX_MS: u64 = 10 * 60_000;
+
+/// How long the server-side safety timeout waits before force-hiding the
+/// webview panel. A hint card may legitimately stay up as a checklist.
+fn panel_safety_timeout_ms(auto_dismiss_ms: u64, next_step_hint: bool) -> u64 {
+    if next_step_hint && auto_dismiss_ms > 0 {
+        NEXT_STEP_HINT_PANEL_MAX_MS
+    } else {
+        auto_dismiss_ms
+    }
+}
+
+/// Bumped on every webview panel delivery. A safety timeout only hides the
+/// notification it was armed for, never a newer one shown since; otherwise a
+/// hint's 10 min timeout could close an unrelated later notification.
+static PANEL_DELIVERY: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+
 #[cfg(test)]
 mod meeting_join_notification_tests {
     use super::notification_is_meeting_join;
@@ -4090,6 +4120,48 @@ mod meeting_join_notification_tests {
         assert!(!notification_is_meeting_join(
             r#"{"actions":[{"type":"meeting_join","url":""}]}"#
         ));
+    }
+
+    #[test]
+    fn next_step_hint_routes_to_the_webview_card_only_with_a_hint() {
+        use super::{
+            notification_is_next_step_hint, panel_safety_timeout_ms, NEXT_STEP_HINT_PANEL_MAX_MS,
+        };
+        assert!(notification_is_next_step_hint(
+            r#"{"type":"next_step_hint","hint":{"hintId":"h1","title":"Add the key"}}"#
+        ));
+        assert!(!notification_is_next_step_hint(
+            r#"{"type":"next_step_hint","hint":null}"#
+        ));
+        assert!(!notification_is_next_step_hint(
+            r#"{"type":"pipe","hint":{"hintId":"h1"}}"#
+        ));
+        assert!(!notification_is_next_step_hint("invalid"));
+
+        assert_eq!(panel_safety_timeout_ms(45_000, true), NEXT_STEP_HINT_PANEL_MAX_MS);
+        assert_eq!(panel_safety_timeout_ms(45_000, false), 45_000);
+        assert_eq!(panel_safety_timeout_ms(0, true), 0, "persistent stays persistent");
+    }
+
+    #[test]
+    fn a_cold_panel_gets_the_latest_payload_once_and_never_a_stale_one() {
+        use super::{PendingPanelPayload, PENDING_PANEL_PAYLOAD_TTL};
+        use std::time::{Duration, Instant};
+        let now = Instant::now();
+        let mut pending = PendingPanelPayload(None);
+        assert_eq!(pending.take(now), None);
+
+        pending.set("first", now);
+        pending.set("second", now);
+        assert_eq!(pending.take(now + Duration::from_secs(6)).as_deref(), Some("second"));
+        assert_eq!(pending.take(now + Duration::from_secs(6)), None, "taken once");
+
+        pending.set("old", now);
+        assert_eq!(
+            pending.take(now + PENDING_PANEL_PAYLOAD_TTL + Duration::from_millis(1)),
+            None,
+            "a reloaded page must not resurface an old alert"
+        );
     }
 }
 
@@ -4135,6 +4207,42 @@ pub async fn show_notification_panel(
     deliver_notification_panel(app_handle, payload)
         .await
         .map(|_| ())
+}
+
+/// How long the panel page may take to ask for a payload it missed.
+const PENDING_PANEL_PAYLOAD_TTL: std::time::Duration = std::time::Duration::from_secs(30);
+
+/// The latest payload sent to the webview panel. `emit_to` reaches only
+/// listeners that already exist, and a cold panel page can take longer to
+/// mount than the 2 s wait below (about 6 s in dev), which lost the alert.
+struct PendingPanelPayload(Option<(String, std::time::Instant)>);
+
+impl PendingPanelPayload {
+    fn set(&mut self, payload: &str, now: std::time::Instant) {
+        self.0 = Some((payload.to_owned(), now));
+    }
+
+    /// At most once per payload, and never one older than the TTL.
+    fn take(&mut self, now: std::time::Instant) -> Option<String> {
+        self.0
+            .take()
+            .filter(|(_, at)| now.saturating_duration_since(*at) <= PENDING_PANEL_PAYLOAD_TTL)
+            .map(|(payload, _)| payload)
+    }
+}
+
+static PENDING_PANEL_PAYLOAD: std::sync::Mutex<PendingPanelPayload> =
+    std::sync::Mutex::new(PendingPanelPayload(None));
+
+/// Called by the panel page once its `notification-panel-update` listener is
+/// registered: returns the payload it may have missed while loading.
+#[tauri::command]
+#[specta::specta]
+pub fn notification_panel_ready() -> Option<String> {
+    PENDING_PANEL_PAYLOAD
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .take(std::time::Instant::now())
 }
 
 /// Render an alert, returning what actually happened to it.
@@ -4195,12 +4303,19 @@ pub(crate) async fn deliver_notification_panel(
     // no native standalone panel, so only the overlay branch applies and
     // anything the pill refuses falls through to the webview panel below.
     let meeting_join = notification_is_meeting_join(&payload);
+    let next_step_hint = notification_is_next_step_hint(&payload);
+    // React-only layouts: neither the Win32 pill nor SwiftUI can render them.
+    #[cfg_attr(
+        not(any(target_os = "windows", target_os = "macos")),
+        allow(unused_variables)
+    )]
+    let webview_card = meeting_join || next_step_hint;
     #[cfg(target_os = "windows")]
     {
         native_actions::install_shortcut_action_callback(&app_handle);
         // Use the shared web card for joins; the Win32 pill only supports a
         // compact row and cannot render the provider/split-control layout.
-        if !meeting_join
+        if !webview_card
             && notification_belongs_to_overlay(notification_type.as_deref())
             && native_shortcut_reminder::show_notification(&payload)
         {
@@ -4228,7 +4343,7 @@ pub(crate) async fn deliver_notification_panel(
             return Ok(NotificationDelivery::ShownOnOverlay);
         }
 
-        if !meeting_join && native_notification::is_available() {
+        if !webview_card && native_notification::is_available() {
             info!("Using native SwiftUI notification panel");
             if native_notification::show(&payload) {
                 // Emit event so the main window can save notification history + PostHog analytics
@@ -4293,6 +4408,15 @@ pub(crate) async fn deliver_notification_panel(
         .ok()
         .and_then(|v| v.get("autoDismissMs")?.as_u64())
         .unwrap_or(20000);
+    let safety_ms = panel_safety_timeout_ms(auto_dismiss_ms, next_step_hint);
+    let delivery = PANEL_DELIVERY.fetch_add(1, std::sync::atomic::Ordering::SeqCst) + 1;
+    let still_current =
+        move || PANEL_DELIVERY.load(std::sync::atomic::Ordering::SeqCst) == delivery;
+    // Both paths below: a window can exist while its page is still loading.
+    PENDING_PANEL_PAYLOAD
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .set(&payload, std::time::Instant::now());
 
     // If window exists, reposition to current screen and show
     if let Some(window) = app_handle.get_webview_window(label) {
@@ -4339,10 +4463,13 @@ pub(crate) async fn deliver_notification_panel(
         // auto-dismiss timer fails (e.g. webview timer throttled on Windows).
         // Adds 5s buffer so JS normally handles it first.
         // Skip when autoDismissMs == 0 (persistent notification, user must act).
-        if auto_dismiss_ms > 0 {
+        if safety_ms > 0 {
             let app_safety = app_handle.clone();
             tokio::spawn(async move {
-                tokio::time::sleep(std::time::Duration::from_millis(auto_dismiss_ms + 5000)).await;
+                tokio::time::sleep(std::time::Duration::from_millis(safety_ms + 5000)).await;
+                if !still_current() {
+                    return;
+                }
                 if let Some(w) = app_safety.get_webview_window("notification-panel") {
                     if w.is_visible().unwrap_or(false) {
                         info!("Safety timeout: force-hiding notification panel");
@@ -4457,11 +4584,14 @@ pub(crate) async fn deliver_notification_panel(
 
     // Server-side safety timeout for newly created windows too
     // Skip when autoDismissMs == 0 (persistent notification, user must act).
-    if auto_dismiss_ms > 0 {
+    if safety_ms > 0 {
         let app_safety = app_handle.clone();
         tokio::spawn(async move {
             // 2s wait for mount + autoDismissMs + 5s buffer
-            tokio::time::sleep(std::time::Duration::from_millis(auto_dismiss_ms + 7000)).await;
+            tokio::time::sleep(std::time::Duration::from_millis(safety_ms + 7000)).await;
+            if !still_current() {
+                return;
+            }
             if let Some(w) = app_safety.get_webview_window("notification-panel") {
                 if w.is_visible().unwrap_or(false) {
                     info!("Safety timeout: force-hiding notification panel (new window)");

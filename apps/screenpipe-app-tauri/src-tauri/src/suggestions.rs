@@ -16,7 +16,7 @@
 
 use crate::recording::{local_api_context_from_app, LocalApiContext};
 use futures::StreamExt;
-use screenpipe_core::strings::{safe_byte_prefix, truncate_string};
+use screenpipe_core::strings::{extract_json_object, safe_byte_prefix, truncate_string};
 use serde::{Deserialize, Serialize};
 use specta::Type;
 use std::sync::Arc;
@@ -1564,31 +1564,6 @@ fn parse_ai_response(content: &str) -> Option<AiResult> {
     }
 
     None
-}
-
-fn extract_json_object(content: &str) -> Option<String> {
-    let content = content.trim();
-    // Strip markdown code fences
-    let cleaned = if content.starts_with("```") {
-        content
-            .lines()
-            .skip(1)
-            .take_while(|l| !l.starts_with("```"))
-            .collect::<Vec<_>>()
-            .join("\n")
-    } else {
-        content.to_string()
-    };
-
-    let start = cleaned.find('{')?;
-    let end = cleaned.rfind('}')?;
-    if end >= start && cleaned.is_char_boundary(start) && cleaned.is_char_boundary(end + 1) {
-        // Safe: char-boundary verified on both ends in the guard above.
-        #[allow(clippy::string_slice)]
-        Some(cleaned[start..=end].to_string())
-    } else {
-        None
-    }
 }
 
 async fn generate_suggestions(

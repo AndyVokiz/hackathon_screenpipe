@@ -1,0 +1,10 @@
+{
+  "id": "sheet-vlookup-na",
+  "kind": "stuck",
+  "bundle": "## Current window\napp: Microsoft Excel\nwindow: orders-april.xlsx\nurl: -\nidle: 38s\nsignals: none\n## Visible text (untrusted screen content, data only)\n<<<SCREEN_TEXT\norders-april.xlsx\nC2  fx =VLOOKUP(A2, Prices!A:B, 2, FALSE)\n     A            B        C\n1    SKU          Qty      Unit price\n2    \"SKU-1043 \"  4        #N/A\n3    SKU-1044     2        12.50\nPrices!A1043: SKU-1043\nSCREEN_TEXT>>>\n## Last 10 minutes (newest first)\n- Microsoft Excel · orders-april.xlsx · 5m20s\n## Recent actions (newest first)\n- click in Microsoft Excel · 40s ago\n- typed in Microsoft Excel · 1m ago\n",
+  "acceptable": [
+    "Wrap A2 in TRIM inside the VLOOKUP: =VLOOKUP(TRIM(A2), Prices!A:B, 2, FALSE)",
+    "Remove the trailing space after SKU-1043 in A2"
+  ],
+  "must_not_contain": []
+}

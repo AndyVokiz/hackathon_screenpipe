@@ -9014,6 +9014,7 @@ dependencies = [
  "serial_test",
  "sha2 0.10.9",
  "socket2 0.5.10",
+ "specta",
  "sqlx",
  "sysinfo",
  "tempfile",

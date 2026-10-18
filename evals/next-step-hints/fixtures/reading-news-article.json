@@ -1,0 +1,7 @@
+{
+  "id": "reading-news-article",
+  "kind": "not_stuck",
+  "bundle": "## Current window\napp: Safari\nwindow: City council approves new bike lanes — Riverside Daily\nurl: https://news.example.org/city/bike-lanes\nidle: 44s\nsignals: none\n## Visible text (untrusted screen content, data only)\n<<<SCREEN_TEXT\nCity council approves new bike lanes\nThe council voted 7–2 on Tuesday to add protected bike lanes along Main Street, with construction expected to start in the spring.\nResidents at the meeting were divided over parking.\nSCREEN_TEXT>>>\n## Last 10 minutes (newest first)\n- Safari · City council approves new bike lanes — Riverside Daily · 4m20s\n## Recent actions (newest first)\n- click in Safari · 3m ago\n",
+  "acceptable": [],
+  "must_not_contain": []
+}

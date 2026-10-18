@@ -52,6 +52,13 @@ export interface NotificationCategory {
   mirrorsShowRestartNotifications?: boolean;
   /** extra fuzzy-search aliases so users find it by intent, not just label */
   keywords?: string[];
+  /**
+   * A feature with its own settings object (`settings[id]`) instead of a
+   * `notificationPrefs` boolean. Only its own switch turns it on: presets,
+   * group toggles and reset skip it, so nobody enables it without seeing
+   * where it sends data.
+   */
+  optIn?: boolean;
 }
 
 export const NOTIFICATION_GROUPS: NotificationGroup[] = [
@@ -172,6 +179,17 @@ export const NOTIFICATION_CATEGORIES: NotificationCategory[] = [
     ],
   },
   {
+    id: "nextStepHints",
+    label: msg("Next-step hints", {}),
+    description:
+      msg("When you pause mid-task, suggest the next step and offer to do it for you", {}),
+    group: "automation",
+    default: false,
+    experimental: true,
+    optIn: true,
+    keywords: ["hint", "next step", "stuck", "suggestion", "do it for me"],
+  },
+  {
     id: "appUpdates",
     label: msg("App updates", {}),
     description: msg("New version available", {}),
@@ -266,12 +284,16 @@ export function formatSnoozeUntil(untilMs: number, now = new Date()): string {
 // ── presets (bulk set) ───────────────────────────────────────────────
 export type CategoryPreset = "recommended" | "all" | "none";
 
+/** Categories stored as `notificationPrefs` booleans; opt-in features are not. */
+export const BULK_CATEGORIES: NotificationCategory[] =
+  NOTIFICATION_CATEGORIES.filter((c) => !c.optIn);
+
 /** Per-category boolean values for a one-click preset. */
 export function categoryValuesForPreset(
   kind: CategoryPreset
 ): Record<string, boolean> {
   return Object.fromEntries(
-    NOTIFICATION_CATEGORIES.map((c) => [
+    BULK_CATEGORIES.map((c) => [
       c.id,
       kind === "all" ? true : kind === "none" ? false : c.default,
     ])
@@ -289,6 +311,13 @@ export function categoriesForGroup(
   return NOTIFICATION_CATEGORIES.filter((c) => c.group === group);
 }
 
+/** The categories a group's bulk toggle switches. */
+export function bulkCategoriesForGroup(
+  group: NotificationGroupId
+): NotificationCategory[] {
+  return BULK_CATEGORIES.filter((c) => c.group === group);
+}
+
 /**
  * Default `notificationPrefs` derived from the registry. Every category
  * defaults from its own `default`; the master switch defaults on and the
@@ -297,7 +326,7 @@ export function categoriesForGroup(
  */
 export const DEFAULT_NOTIFICATION_PREFS: Record<string, unknown> = {
   [MASTER_NOTIFICATIONS_KEY]: true,
-  ...Object.fromEntries(NOTIFICATION_CATEGORIES.map((c) => [c.id, c.default])),
+  ...Object.fromEntries(BULK_CATEGORIES.map((c) => [c.id, c.default])),
   mutedPipes: [] as string[],
   allowDuringPause: [] as string[],
   snoozeUntil: 0,
@@ -318,7 +347,7 @@ export function groupState(
   prefs: Record<string, unknown> | undefined,
   group: NotificationGroupId
 ): "all" | "some" | "none" {
-  const cats = categoriesForGroup(group);
+  const cats = bulkCategoriesForGroup(group);
   const on = cats.filter((c) => categoryEnabled(prefs, c)).length;
   if (on === 0) return "none";
   if (on === cats.length) return "all";

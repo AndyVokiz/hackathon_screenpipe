@@ -22,6 +22,11 @@ use screenpipe_audio::transcription::deepgram::{
 use screenpipe_audio::transcription::stt::{
     OpenAICompatibleConfig, DEFAULT_OPENAI_COMPATIBLE_ENDPOINT, DEFAULT_OPENAI_COMPATIBLE_MODEL,
 };
+use screenpipe_config::NextStepHintsSettings;
+use screenpipe_engine::hot_frame_cache::HotFrameCache;
+use screenpipe_engine::next_step::{
+    detector_change, start_stall_detector, DetectorChange, SuppressFn,
+};
 use screenpipe_engine::{
     start_meeting_watcher, start_ui_recording,
     vision_manager::{start_monitor_watcher, stop_monitor_watcher, VisionManager},
@@ -46,6 +51,11 @@ pub struct CaptureSession {
     vision_task: Option<tokio::task::JoinHandle<()>>,
     schedule_task: Option<tokio::task::JoinHandle<()>>,
     ui_recorder_handle: Option<screenpipe_engine::UiRecorderHandle>,
+    /// What the next-step pause detector needs; `None` without a UI recorder.
+    next_step_inputs: Option<NextStepInputs>,
+    /// Next-step hints pause detector; exits on `shutdown_tx`, aborted on stop
+    /// or when the setting turns off.
+    next_step: Option<NextStepDetector>,
     audio_manager: Arc<screenpipe_audio::audio_manager::AudioManager>,
     audio_disabled: bool,
     /// Cleared on stop so `/vision/device/*` stops pointing at a shut-down manager.
@@ -307,6 +317,36 @@ impl CaptureSession {
             info!("meeting watcher skipped because meeting detection is disabled");
         }
 
+        // --- Next-step hints: pause detection ---
+        // Kept even while the feature is off, so the settings toggle can
+        // start the detector without restarting capture.
+        let next_step_inputs = if ui_recorder_handle.is_some() {
+            let meeting_detector = server.audio_manager.meeting_detector().await;
+            let manual_meeting = server.manual_meeting.clone();
+            let suppressed: screenpipe_engine::next_step::SuppressFn = Arc::new(move || {
+                meeting_detector
+                    .as_ref()
+                    .is_some_and(|detector| detector.is_in_meeting())
+                    // A writer holding the lock is mid-update; stay quiet.
+                    || manual_meeting
+                        .try_read()
+                        .map_or(true, |meeting| meeting.is_some())
+                    || screenpipe_engine::drm_detector::drm_content_paused()
+                    || screenpipe_engine::schedule_monitor::schedule_paused()
+            });
+            Some(NextStepInputs {
+                cache: server.hot_frame_cache.clone(),
+                suppressed,
+            })
+        } else {
+            None
+        };
+        let next_step = start_next_step_detector(
+            next_step_inputs.as_ref(),
+            &config.next_step_hints,
+            &shutdown_tx,
+        );
+
         // --- Speaker identification ---
         let _speaker_id_handle = screenpipe_engine::start_speaker_identification(
             server.db.clone(),
@@ -335,6 +375,8 @@ impl CaptureSession {
             vision_task,
             schedule_task,
             ui_recorder_handle,
+            next_step_inputs,
+            next_step,
             audio_manager: server.audio_manager.clone(),
             audio_disabled: config.disable_audio,
             vision_manager_handle,
@@ -351,6 +393,42 @@ impl CaptureSession {
             self.disk_pressure_data_dir.clone(),
             self.shutdown_tx.subscribe(),
         );
+    }
+
+    /// Start, stop or restart the next-step pause detector to match
+    /// `settings`, leaving capture running. Returns whether it now runs.
+    /// Spec: `docs/NEXT_STEP_HINTS_SPEC_STEP_6.md`.
+    pub fn apply_next_step_settings(&mut self, settings: &NextStepHintsSettings) -> bool {
+        let running_pause_ms = self.next_step.as_ref().map(|detector| detector.pause_ms);
+        let input_ready = self.next_step_inputs.is_some() && next_step_input_ready();
+        match detector_change(running_pause_ms, settings, input_ready) {
+            DetectorChange::Keep => {
+                if settings.enabled && self.next_step.is_none() {
+                    info!(
+                        "next_step: stall detector not started: input event capture is not running"
+                    );
+                }
+            }
+            DetectorChange::Stop => {
+                self.stop_next_step_detector();
+                info!("next_step: stall detector stopped by settings");
+            }
+            DetectorChange::Start | DetectorChange::Restart => {
+                self.stop_next_step_detector();
+                self.next_step = start_next_step_detector(
+                    self.next_step_inputs.as_ref(),
+                    settings,
+                    &self.shutdown_tx,
+                );
+            }
+        }
+        self.next_step.is_some()
+    }
+
+    fn stop_next_step_detector(&mut self) {
+        if let Some(detector) = self.next_step.take() {
+            detector.task.abort();
+        }
     }
 
     /// Stop all capture pipelines. The server stays alive.
@@ -377,6 +455,9 @@ impl CaptureSession {
 
         // Broadcast shutdown to VisionManager, meeting watcher, schedule monitor, compaction
         let _ = self.shutdown_tx.send(());
+
+        // The detector exits on the broadcast; abort covers a missed message.
+        self.stop_next_step_detector();
 
         // Join before allowing a replacement session to initialize the shared
         // schedule flag; an old monitor must never re-pause the new session.
@@ -436,6 +517,48 @@ impl CaptureSession {
             Err(failures.join("; "))
         }
     }
+}
+
+/// Shared state the next-step pause detector reads.
+struct NextStepInputs {
+    cache: Arc<HotFrameCache>,
+    suppressed: SuppressFn,
+}
+
+/// A running pause detector and the pause it measures.
+struct NextStepDetector {
+    task: tokio::task::JoinHandle<()>,
+    pause_ms: u64,
+}
+
+/// Pauses are measured from live input events, so a detector starts only
+/// while the UI recorder's input tap is up.
+fn next_step_input_ready() -> bool {
+    screenpipe_engine::ui_recorder::ui_recorder_status_snapshot().input_tap_running
+}
+
+fn start_next_step_detector(
+    inputs: Option<&NextStepInputs>,
+    settings: &NextStepHintsSettings,
+    shutdown_tx: &broadcast::Sender<()>,
+) -> Option<NextStepDetector> {
+    if !settings.enabled {
+        return None;
+    }
+    let Some(inputs) = inputs.filter(|_| next_step_input_ready()) else {
+        info!("next_step: stall detector not started: input event capture is not running");
+        return None;
+    };
+    let task = start_stall_detector(
+        settings,
+        inputs.cache.clone(),
+        inputs.suppressed.clone(),
+        shutdown_tx.subscribe(),
+    )?;
+    Some(NextStepDetector {
+        task,
+        pause_ms: settings.pause_ms(),
+    })
 }
 
 #[cfg(target_os = "macos")]

@@ -38,6 +38,8 @@ import { NotificationActionButton } from "@/components/notification-action-butto
 import { isNotificationFeedbackEligible } from "@/lib/ai-feedback";
 import { NotificationFeedback } from "@/components/notification-feedback";
 import { MeetingJoinNotification } from "@/components/meeting-join-notification";
+import { NextStepHintCard } from "@/components/next-step-hint-card";
+import { isNextStepHintPayload } from "@/lib/next-step-hint";
 import { showNotificationPanel } from "@/lib/hooks/use-notification-panel";
 import { useGT } from "gt-react";
 
@@ -53,6 +55,8 @@ interface NotificationPayload {
   source_session_id?: string;
   source_message_id?: string;
   source_url?: string;
+  /** Structured next-step hint; the hint card renders it. */
+  hint?: unknown;
 }
 
 type NotificationDismissReason =
@@ -335,11 +339,22 @@ export default function NotificationPanelPage() {
     };
   }, [payload?.id]);
 
+  // A payload can arrive twice: taken through `notificationPanelReady` and
+  // then emitted by Rust's delayed send. Redraw only after it was dismissed.
+  const lastShownRef = useRef<string | null>(null);
+  const visibleRef = useRef(false);
+  useEffect(() => {
+    visibleRef.current = visible;
+  }, [visible]);
+
   // Listen for notification payloads from Rust
   useEffect(() => {
-    const unlisten = listen<string>("notification-panel-update", (event) => {
+    const show = (raw: string) => {
+      if (raw === lastShownRef.current && visibleRef.current) return;
       try {
-        const data: NotificationPayload = JSON.parse(event.payload);
+        const data: NotificationPayload = JSON.parse(raw);
+        lastShownRef.current = raw;
+        visibleRef.current = true;
         setPayload(data);
         setOptionsExpanded(false);
         setFeedbackExpanded(false);
@@ -367,15 +382,32 @@ export default function NotificationPanelPage() {
           localforage.setItem("notification-history", updated);
         });
 
-        const dismissMs = data.autoDismissMs ?? 20000;
+        // The hint card runs its own timers (45 s card, 10 min checklist).
+        const dismissMs = isNextStepHintPayload(data)
+          ? 0
+          : (data.autoDismissMs ?? 20000);
         autoDismissMsRef.current = dismissMs;
         setNotificationEpoch((n) => n + 1);
       } catch (e) {
         console.error("failed to parse notification payload:", e);
       }
-    });
+    };
+
+    let active = true;
+    const unlisten = listen<string>("notification-panel-update", (event) =>
+      show(event.payload),
+    );
+    // A cold window can mount after Rust emitted its payload. Ask for it once
+    // the listener exists, so nothing can arrive in between.
+    unlisten
+      .then(() => (active ? commands.notificationPanelReady() : null))
+      .then((pending) => {
+        if (active && pending) show(pending);
+      })
+      .catch((e) => console.warn("notification panel ready failed:", e));
 
     return () => {
+      active = false;
       unlisten.then((fn) => fn());
     };
   }, []);
@@ -452,6 +484,13 @@ export default function NotificationPanelPage() {
 
   if (payload.actions.some((action) => action.type === "meeting_join" && action.url)) {
     return <MeetingJoinNotification key={payload.id} {...payload}
+      onAction={handleAction} onDismiss={() => void hide("explicit")}
+      onMouseEnter={() => { hoveredRef.current = true; }}
+      onMouseLeave={() => { hoveredRef.current = false; }} />;
+  }
+
+  if (isNextStepHintPayload(payload)) {
+    return <NextStepHintCard key={payload.id} view={payload.hint}
       onAction={handleAction} onDismiss={() => void hide("explicit")}
       onMouseEnter={() => { hoveredRef.current = true; }}
       onMouseLeave={() => { hoveredRef.current = false; }} />;

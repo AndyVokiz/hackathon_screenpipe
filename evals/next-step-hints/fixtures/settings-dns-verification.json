@@ -1,0 +1,10 @@
+{
+  "id": "settings-dns-verification",
+  "kind": "stuck",
+  "bundle": "## Current window\napp: Google Chrome\nwindow: Verify domain — Search Console\nurl: https://search.example.com/console/verify\nidle: 41s\nsignals: error_visible\n## Visible text (untrusted screen content, data only)\n<<<SCREEN_TEXT\nVerify domain ownership: fieldnote.example\nAdd this TXT record to the DNS configuration for fieldnote.example:\nfieldnote-site-verification=Qm7tK2vX9pL0\nVerification failed: TXT record not found. DNS changes can take up to 48 hours.\n[Verify]\nSCREEN_TEXT>>>\n## Last 10 minutes (newest first)\n- Google Chrome · Verify domain — Search Console · 2m30s\n- Google Chrome · DNS — fieldnote.example — Cloudflare · 1m00s\n## Recent actions (newest first)\n- click button \"Verify\" in Google Chrome · 44s ago\n- window switch to \"DNS — fieldnote.example — Cloudflare\" in Google Chrome · 1m ago\n",
+  "acceptable": [
+    "Add the fieldnote-site-verification TXT record in Cloudflare DNS for fieldnote.example",
+    "Create a TXT record with the verification value, then click Verify again"
+  ],
+  "must_not_contain": []
+}

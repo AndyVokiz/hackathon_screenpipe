@@ -100,6 +100,33 @@ pub async fn send_typed_with_actions_priority_and_id_confirmed(
     post_notification(&payload).await
 }
 
+/// Show a next-step hint card. The hint id is the notification id, so the
+/// card's buttons can find the stored hint. Transient: a hint means nothing
+/// once it is off screen. The plain `body` stays for any surface that cannot
+/// render the card.
+pub async fn send_next_step_hint(
+    view: &screenpipe_engine::next_step::view::NextStepHintView,
+    title: impl Into<String>,
+    body: impl Into<String>,
+) -> Result<(), String> {
+    let mut payload = notification_payload(
+        title,
+        body,
+        screenpipe_engine::next_step::HINT_NOTIFICATION_TYPE,
+        Some(NEXT_STEP_HINT_AUTO_DISMISS_MS),
+        Vec::new(),
+        NotificationPriority::Normal,
+    );
+    payload["id"] = json!(view.hint_id);
+    payload["transient"] = json!(true);
+    payload["hint"] = serde_json::to_value(view).map_err(|error| error.to_string())?;
+    post_notification(&payload).await
+}
+
+/// The card's own timer; the panel's safety timeout allows for the 10 min
+/// checklist instead (see `commands::NEXT_STEP_HINT_PANEL_MAX_MS`).
+pub const NEXT_STEP_HINT_AUTO_DISMISS_MS: u64 = 45_000;
+
 fn notification_payload(
     title: impl Into<String>,
     body: impl Into<String>,

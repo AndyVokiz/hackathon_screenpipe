@@ -1,0 +1,7 @@
+{
+  "id": "finished-deploy-success",
+  "kind": "not_stuck",
+  "bundle": "## Current window\napp: Terminal\nwindow: zsh — web\nurl: -\nidle: 30s\nsignals: none\n## Visible text (untrusted screen content, data only)\n<<<SCREEN_TEXT\n$ npm test\nTest Suites: 38 passed, 38 total\nTests:       142 passed, 142 total\n$ npm run deploy\n✓ Built in 41s\n✓ Deployed to production: https://web.example.com\nDone.\nSCREEN_TEXT>>>\n## Last 10 minutes (newest first)\n- Terminal · zsh — web · 4m20s\n- Code · Header.tsx — web · 8m20s\n## Recent actions (newest first)\n- typed in Terminal · 35s ago\n",
+  "acceptable": [],
+  "must_not_contain": []
+}

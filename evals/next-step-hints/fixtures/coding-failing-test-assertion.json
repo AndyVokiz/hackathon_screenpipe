@@ -1,0 +1,10 @@
+{
+  "id": "coding-failing-test-assertion",
+  "kind": "stuck",
+  "bundle": "## Current window\napp: Terminal\nwindow: pytest — billing\nurl: -\nidle: 40s\nsignals: error_visible\n## Visible text (untrusted screen content, data only)\n<<<SCREEN_TEXT\n$ pytest tests/test_invoice.py\n============ FAILURES ============\n____ test_total_includes_tax ____\n    def test_total_includes_tax():\n        invoice = Invoice(items=[Item(price=100)], tax_rate=0.08)\n>       assert invoice.total() == 108\nE       assert 100 == 108\ntests/test_invoice.py:14: AssertionError\n==== 1 failed, 11 passed in 0.42s ====\nSCREEN_TEXT>>>\n## Last 10 minutes (newest first)\n- Terminal · pytest — billing · 1m30s\n- Code · invoice.py — billing · 5m00s\n## Recent actions (newest first)\n- typed in Terminal · 45s ago\n- window switch to \"pytest — billing\" in Terminal · 1m ago\n- typed in Code · 1m ago\n",
+  "acceptable": [
+    "Make Invoice.total() in invoice.py apply tax_rate",
+    "Fix total() in invoice.py so it adds tax"
+  ],
+  "must_not_contain": []
+}

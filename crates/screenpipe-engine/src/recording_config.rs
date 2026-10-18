@@ -9,7 +9,9 @@ use screenpipe_audio::meeting_streaming::MeetingStreamingConfig;
 use screenpipe_audio::transcription::deepgram::DeepgramTranscriptionConfig;
 use screenpipe_audio::transcription::VocabularyEntry;
 use screenpipe_audio::vad::VadEngineEnum;
-use screenpipe_config::{ChannelConfig, DbConfig, DomainRule, SemanticContextMode, UrlRule};
+use screenpipe_config::{
+    ChannelConfig, DbConfig, DomainRule, NextStepHintsSettings, SemanticContextMode, UrlRule,
+};
 use screenpipe_core::Language;
 use screenpipe_screen::PipelineMetrics;
 use std::path::PathBuf;
@@ -157,6 +159,10 @@ pub struct RecordingConfig {
     // Workflow events
     /// Enable AI workflow event detection (cloud, requires subscription).
     pub enable_workflow_events: bool,
+
+    // Next-step hints
+    /// Pause detection for next-step hints. Off by default.
+    pub next_step_hints: NextStepHintsSettings,
 
     // Speaker identification
     /// User's display name for calendar-assisted speaker ID.
@@ -317,6 +323,7 @@ impl RecordingConfig {
             pii_redaction_pseudonyms: settings.pii_redaction_pseudonyms,
             filter_music: settings.filter_music,
             enable_workflow_events: settings.enable_workflow_events,
+            next_step_hints: settings.next_step_hints.clone(),
             audio_transcription_engine: engine_str
                 .parse()
                 .unwrap_or(AudioTranscriptionEngine::WhisperLargeV3Turbo),

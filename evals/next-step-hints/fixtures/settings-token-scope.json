@@ -1,0 +1,10 @@
+{
+  "id": "settings-token-scope",
+  "kind": "stuck",
+  "bundle": "## Current window\napp: Terminal\nwindow: zsh — deploy\nurl: -\nidle: 37s\nsignals: error_visible\n## Visible text (untrusted screen content, data only)\n<<<SCREEN_TEXT\n$ ./scripts/release.sh\nPushing tag v2.3.0...\nremote: Permission to acme/app.git denied to ci-deploy.\nfatal: unable to access 'https://codehub.example.com/acme/app.git/': The requested URL returned error: 403\nToken \"ci-deploy\" scopes: repo:read\nSCREEN_TEXT>>>\n## Last 10 minutes (newest first)\n- Terminal · zsh — deploy · 1m30s\n- Google Chrome · Personal access tokens — Codehub · 1m10s\n## Recent actions (newest first)\n- typed in Terminal · 40s ago\n- window switch to \"Personal access tokens — Codehub\" in Google Chrome · 1m ago\n",
+  "acceptable": [
+    "Give the ci-deploy token repo:write scope",
+    "Edit the ci-deploy token in Personal access tokens to allow writes"
+  ],
+  "must_not_contain": []
+}

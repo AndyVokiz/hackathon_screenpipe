@@ -29,6 +29,8 @@ type StoreChange = {
 
 export interface BrowserIpcMockOptions {
   systemLocale?: string;
+  /** Next-step hints settings: `?mockNextStepInput=missing` shows the blocked toggle. */
+  nextStepInputCapture?: string;
   mode: BrowserDevMode;
   scenario?: BrowserDevScenario;
   apiPort: number;
@@ -157,11 +159,42 @@ const BROWSER_DEV_TEMPLATE_KITS: BrainViewTemplateKit[] = [
   },
 ];
 
+const MOCK_NEXT_STEP_PERMISSION = {
+  requestId: "mock-permission",
+  kind: "edit",
+  title: "Edit this file?",
+  detail: "/Users/screenpipe/code/shop/.env",
+  options: [
+    { optionId: "allow_once", name: "Allow once" },
+    { optionId: "deny", name: "Deny" },
+  ],
+};
+
+const MOCK_NEXT_STEP_DEFAULTS = {
+  enabled: false,
+  pauseSeconds: 20,
+  minIntervalMinutes: 5,
+  allowAutoExecute: true,
+  blockedApps: [
+    "1Password",
+    "Bitwarden",
+    "KeePassXC",
+    "Keychain Access",
+    "System Settings",
+    "System Preferences",
+    "Settings",
+    "Credential Manager",
+  ],
+};
+
 const NOOP_COMMANDS = new Set([
   "close_window",
   "complete_onboarding",
   "confirm_browser_cookie_access_for_session",
   "ensure_webview_focus",
+  "hide_notification_panel",
+  "next_step_feedback",
+  "notification_panel_ready",
   "open_login_window",
   "open_viewer_window",
   "open_permission_settings",
@@ -489,6 +522,11 @@ export function createBrowserIpcMock(options: BrowserIpcMockOptions) {
     total_records: null as number | null, bytes_saved: null as number | null, available_bytes: 3_000_000_000 as number | null, completed: false,
   };
   const emitMigrationActivity = () => options.onEvent?.("storage-migration-activity", { ...migrationActivity });
+  const nextStepProgress = (hintId: string, steps: [number, Record<string, unknown>][]) => {
+    for (const [delayMs, update] of steps) {
+      setTimeout(() => options.onEvent?.("next-step-progress", { hintId, ...update }), delayMs);
+    }
+  };
   const stores = new Map<number, Map<string, unknown>>();
   const storePaths = new Map<string, number>();
   const warned = new Set<string>();
@@ -1071,6 +1109,31 @@ export function createBrowserIpcMock(options: BrowserIpcMockOptions) {
         };
       case "get_screenpipe_ai_gateway_url":
         return "https://api.screenpipe.com/v1";
+      case "next_step_settings_status":
+      case "next_step_apply_settings":
+        return {
+          recipient: { kind: "remote", name: "screenpipe cloud" },
+          inputCapture: options.nextStepInputCapture ?? "running",
+          defaults: MOCK_NEXT_STEP_DEFAULTS,
+        };
+      // Scripted, fictional "Do it for me" run for the hint card.
+      case "next_step_execute":
+        nextStepProgress(String(input.hintId ?? ""), [
+          [400, { state: "running", stepLabel: "read .env.example" }],
+          [1400, { state: "needs_permission", permission: MOCK_NEXT_STEP_PERMISSION }],
+        ]);
+        return null;
+      case "next_step_permission_response":
+        nextStepProgress(String(input.hintId ?? ""), [
+          [100, { state: "running", stepLabel: "edit .env.local" }],
+          [1200, { state: "done", result: "Added STRIPE_KEY to .env.local." }],
+        ]);
+        return null;
+      case "next_step_stop":
+        nextStepProgress(String(input.hintId ?? ""), [
+          [200, { state: "stopped", result: "Stopped" }],
+        ]);
+        return null;
       case "generate_activity_history":
       case "get_activity_history":
         return mockActivityHistory(input.start, input.end);

@@ -1,0 +1,7 @@
+{
+  "id": "thinking-empty-doc",
+  "kind": "not_stuck",
+  "bundle": "## Current window\napp: Notion\nwindow: Untitled\nurl: -\nidle: 40s\nsignals: none\n## Visible text (untrusted screen content, data only)\n<<<SCREEN_TEXT\nUntitled\nPress Enter to continue with an empty page, or pick a template.\nSCREEN_TEXT>>>\n## Last 10 minutes (newest first)\n- Notion · Untitled · 1m10s\n- Notion · Team wiki · 3m20s\n## Recent actions (newest first)\n- click in Notion · 45s ago\n",
+  "acceptable": [],
+  "must_not_contain": []
+}

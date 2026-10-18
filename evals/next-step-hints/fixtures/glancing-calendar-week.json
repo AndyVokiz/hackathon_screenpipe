@@ -1,0 +1,7 @@
+{
+  "id": "glancing-calendar-week",
+  "kind": "not_stuck",
+  "bundle": "## Current window\napp: Calendar\nwindow: Week of April 14\nurl: -\nidle: 26s\nsignals: none\n## Visible text (untrusted screen content, data only)\n<<<SCREEN_TEXT\nWeek of April 14\nMon 9:30 Standup\nTue 14:00 1:1 with Priya\nWed 11:00 Planning\nThu All day: Offsite\nFri 16:00 Demo\nSCREEN_TEXT>>>\n## Last 10 minutes (newest first)\n- Calendar · Week of April 14 · 1m10s\n- Microsoft Outlook · Inbox · 5m00s\n## Recent actions (newest first)\n- app switch to Calendar · 1m ago\n",
+  "acceptable": [],
+  "must_not_contain": []
+}

@@ -8,6 +8,7 @@ import {
   screen,
   waitFor,
 } from "@testing-library/react";
+import posthog from "posthog-js";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import NotificationPanelPage from "./page";
 
@@ -17,10 +18,13 @@ const bridge = vi.hoisted(() => ({
   hide: vi.fn().mockResolvedValue(undefined),
   show: vi.fn().mockResolvedValue(undefined),
   execute: vi.fn().mockResolvedValue(undefined),
+  feedback: vi.fn().mockResolvedValue({ status: "ok", data: null }),
+  ready: vi.fn().mockResolvedValue(null),
 }));
 vi.mock("@tauri-apps/api/event", () => ({
-  listen: vi.fn((_name, callback) => {
-    bridge.receive = callback;
+  listen: vi.fn((name, callback) => {
+    // The hint card also listens (for run progress); keep the panel's own.
+    if (name === "notification-panel-update") bridge.receive = callback;
     return Promise.resolve(() => {});
   }),
   emit: vi.fn().mockResolvedValue(undefined),
@@ -30,6 +34,8 @@ vi.mock("@/lib/utils/tauri", () => ({
     copyTextToClipboard: bridge.copy,
     hideNotificationPanel: bridge.hide,
     showNotificationPanel: bridge.show,
+    nextStepFeedback: bridge.feedback,
+    notificationPanelReady: bridge.ready,
   },
 }));
 vi.mock("posthog-js", () => ({ default: { capture: vi.fn() } }));
@@ -46,6 +52,7 @@ vi.mock("@/components/markdown", () => ({
 }));
 vi.mock("@/lib/notifications/actions", () => ({
   executeNotificationAction: bridge.execute,
+  routeNotificationDeeplink: vi.fn().mockResolvedValue(undefined),
 }));
 
 const payload = {
@@ -153,6 +160,43 @@ describe("compact notification panel", () => {
 });
 
 
+describe("cold panel delivery", () => {
+  const shownCount = () =>
+    vi
+      .mocked(posthog.capture)
+      .mock.calls.filter(([name]) => name === "notification_shown").length;
+
+  it("shows a payload Rust emitted before the page was listening", async () => {
+    bridge.ready.mockResolvedValueOnce(JSON.stringify(payload));
+    render(<NotificationPanelPage />);
+    expect(await screen.findByText("Ready for review")).toBeInTheDocument();
+    expect(bridge.ready).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not redraw when the delayed emit repeats the taken payload", async () => {
+    bridge.ready.mockResolvedValueOnce(JSON.stringify(payload));
+    render(<NotificationPanelPage />);
+    await screen.findByText("Ready for review");
+    fireEvent.click(
+      screen.getByRole("button", { name: "Notification options" }),
+    );
+    await deliver();
+    expect(
+      screen.getByRole("button", { name: "Notification options" }),
+    ).toHaveAttribute("aria-expanded", "true");
+    expect(shownCount()).toBe(1);
+  });
+
+  it("shows the same payload again once it was dismissed", async () => {
+    render(<NotificationPanelPage />);
+    await deliver();
+    fireEvent.click(screen.getByRole("button", { name: /dismiss/i }));
+    await waitFor(() => expect(bridge.hide).toHaveBeenCalled());
+    await deliver();
+    expect(shownCount()).toBe(2);
+  });
+});
+
 describe("meeting join notification delivery", () => {
   const meeting = {
     ...payload, type: "meeting", title: "meeting starting in 1 min",
@@ -177,5 +221,55 @@ describe("meeting join notification delivery", () => {
     await waitFor(() => expect(bridge.show).toHaveBeenCalledTimes(1));
     expect(JSON.parse(bridge.show.mock.calls[0][0])).toMatchObject({ type: "warning", title: "Screen detail could not start" });
     expect(bridge.hide.mock.invocationCallOrder[0]).toBeLessThan(bridge.show.mock.invocationCallOrder[0]);
+  });
+});
+
+describe("next step hint delivery", () => {
+  // Fictional content only.
+  const hint = {
+    ...payload,
+    id: "hint-1",
+    type: "next_step_hint",
+    title: "Add STRIPE_KEY to .env.local",
+    body: "1. Open .env.local\n\nBased on Code · checkout.ts · last 4 min",
+    autoDismissMs: 45000,
+    actions: [],
+    hint: {
+      hintId: "hint-1",
+      title: "Add STRIPE_KEY to .env.local",
+      how: ["Open .env.local"],
+      appName: "Code",
+      sourceLine: "Based on Code · checkout.ts · last 4 min",
+      frameId: 7,
+      automatable: false,
+      risk: "safe",
+      effect: "",
+      confidenceBucket: "0.7-0.8",
+      latencyMs: 900,
+    },
+  };
+
+  it("renders the hint card for next_step_hint and the usual layout otherwise", async () => {
+    render(<NotificationPanelPage />);
+    await deliver(hint);
+    expect(screen.getByRole("region", { name: "Next step" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Notification options" })).toBeNull();
+
+    await deliver({ ...payload, id: "plain", type: "next_step_hint" });
+    expect(screen.queryByRole("region", { name: "Next step" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Notification options" })).toBeInTheDocument();
+  });
+
+  it("leaves the timing to the card: hidden at 45 s, not at the page default", async () => {
+    vi.useFakeTimers();
+    render(<NotificationPanelPage />);
+    await deliver(hint);
+    act(() => vi.advanceTimersByTime(44_000));
+    expect(bridge.hide).not.toHaveBeenCalled();
+    await act(async () => {
+      vi.advanceTimersByTime(1_500);
+    });
+    expect(bridge.hide).toHaveBeenCalledTimes(1);
+    expect(bridge.feedback).toHaveBeenCalledWith("hint-1", "timeout");
   });
 });

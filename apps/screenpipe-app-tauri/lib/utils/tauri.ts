@@ -1327,6 +1327,84 @@ async nativeTimelineShow(port: number, apiKey: string | null, embedded: boolean 
     return await TAURI_INVOKE("native_timeline_show", { port, apiKey, embedded });
 },
 /**
+ * Apply the saved `nextStepHints` to the running capture session: the toggle
+ * and the pause start, stop or restart the pause detector without
+ * restarting capture. The other fields need nothing, because every stall
+ * re-reads them. With recording off, the next capture start reads them.
+ */
+async nextStepApplySettings() : Promise<Result<NextStepSettingsStatus, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("next_step_apply_settings") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Run a shown hint's step. `confirmed` is the card's Confirm for outward or
+ * destructive steps. Returns once the agent has the prompt; progress follows
+ * as `next-step-progress` events.
+ */
+async nextStepExecute(hintId: string, confirmed: boolean) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("next_step_execute", { hintId, confirmed }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Record what the user did with a shown hint. An unknown or expired hint id
+ * is an error. "Never in this app" also adds the app to the
+ * `nextStepHints.blockedApps` setting.
+ */
+async nextStepFeedback(hintId: string, outcome: HintOutcome) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("next_step_feedback", { hintId, outcome }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Answer the guard's permission prompt from the card. pi's own `select`
+ * resolves from `{ value }`, so that is what is sent.
+ */
+async nextStepPermissionResponse(hintId: string, requestId: string, optionId: string) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("next_step_permission_response", { hintId, requestId, optionId }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async nextStepSettingsStatus() : Promise<Result<NextStepSettingsStatus, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("next_step_settings_status") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Stop the running step for this hint. The session ends right away.
+ */
+async nextStepStop(hintId: string) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("next_step_stop", { hintId }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Called by the panel page once its `notification-panel-update` listener is
+ * registered: returns the payload it may have missed while loading.
+ */
+async notificationPanelReady() : Promise<string | null> {
+    return await TAURI_INVOKE("notification_panel_ready");
+},
+/**
  * Cancel any in-flight OAuth flow(s) for the given integration.
  * Dropping the stored sender makes the awaiting `oauth_connect` call fail fast
  * with "OAuth channel closed before code was received" instead of hanging for
@@ -3456,6 +3534,38 @@ export type ExportEvent = { kind: "started"; jobId: string; request: ExportReque
 export type ExportRequestInfo = { meetingId: number | null; start: string | null; end: string | null; outputPath: string }
 export type FeedbackUploadRequest = { jobId: string; identifier: string; reportType: string; feedbackText: string; settingsJson: string; chatHistory: string; consoleLog: string; analyticsId: string | null; os: string; osVersion: string; appVersion: string; screenshotDataUrl: string | null; videoDataUrl: string | null; videoPath: string | null; videoExt: string | null }
 export type HardwareCapability = { hasGpu: boolean; cpuCores: number; totalMemoryGb: number; recommendedEngine: string; reason: string }
+/**
+ * What the user did with a shown hint. The card sends it through the
+ * `next_step_feedback` command.
+ */
+export type HintOutcome =
+/**
+ * "I'll do it": the card became a checklist.
+ */
+"manual" |
+/**
+ * "Do it for me" (step 5).
+ */
+"auto" | "dismissed" | "timeout" | "snooze_1h" | "never_in_app" | "not_useful"
+/**
+ * Who receives screen excerpts, for the settings disclosure. Derived from
+ * [`route_for`], so the disclosure always names where hints are sent.
+ */
+export type HintRecipient =
+/**
+ * The model runs on this device and nothing is redacted. `model` may
+ * be empty.
+ */
+{ kind: "device"; model: string } |
+/**
+ * Redacted excerpts leave the device for `name`: a url host, a provider
+ * name, or [`CLOUD_RECIPIENT`].
+ */
+{ kind: "remote"; name: string } |
+/**
+ * No usable model, so no hints.
+ */
+{ kind: "unavailable" }
 export type IcsCalendarEntry = { name: string; url: string; enabled: boolean }
 /**
  * A skill currently sitting in the screenpipe store.
@@ -3465,6 +3575,20 @@ export type ImportedSkill = { name: string; description: string;
  * Absolute path inside `<data_dir>/skills/`.
  */
 path: string }
+/**
+ * Whether pauses can be measured, which needs live keyboard and mouse
+ * events.
+ */
+export type InputCapture = "running" |
+/**
+ * Recording is on but input events don't arrive: on macOS, a missing
+ * Accessibility or Input Monitoring permission.
+ */
+"missing" |
+/**
+ * Recording is off; the detector starts with it.
+ */
+"recording_off"
 export type InstallBrainViewTemplateKitRequest = { kitId: string; targetViewId: string; expectedRevision: number | null }
 export type JobEvent = { kind: "started"; jobId: string; label: string; message: string | null } | { kind: "progress"; jobId: string; label: string; progress: number; message: string | null } | { kind: "completed"; jobId: string; label: string; outputPath: string | null; message: string | null } | { kind: "failed"; jobId: string; label: string; error: string }
 export type JsonValue = null | boolean | number | string | JsonValue[] | { [key in string]: JsonValue }
@@ -3514,6 +3638,41 @@ export type ManagedTeamSkillReceipt = { artifact_id: string; version: number; re
 status: string; detail?: string | null }
 export type MeetingExportSummary = { job_id: string; output_path: string; frame_count: number; audio_chunk_count: number; duration_secs: number; file_size_bytes: number }
 export type MonitorDevice = { id: number; stableId: string; name: string; isDefault: boolean; width: number; height: number }
+/**
+ * Next-step hints: when the user pauses mid-task, suggest the next step.
+ *
+ * Off by default. Read the clamped values through [`Self::pause_ms`] and
+ * [`Self::min_interval_ms`]; the raw fields hold whatever the user saved.
+ */
+export type NextStepHintsSettings = { enabled: boolean;
+/**
+ * Seconds without input before a pause counts as a stall.
+ */
+pauseSeconds: number;
+/**
+ * Minimum minutes between two shown hints.
+ */
+minIntervalMinutes: number;
+/**
+ * Whether "Do it for me" may start an agent run.
+ */
+allowAutoExecute: boolean;
+/**
+ * Apps that never get hints (case-insensitive substring match).
+ */
+blockedApps: string[] }
+/**
+ * What the settings block shows besides the stored settings.
+ */
+export type NextStepSettingsStatus = {
+/**
+ * Where screen excerpts go with the current default AI preset.
+ */
+recipient: HintRecipient; inputCapture: InputCapture;
+/**
+ * The Rust defaults, so the blocked-app list has one source.
+ */
+defaults: NextStepHintsSettings }
 export type NotificationActionEvent = { actionType: string | null; rawJson: string; payload: JsonValue }
 export type OAuthInstanceInfo = { instance: string | null; display_name: string | null }
 export type OAuthStatus = { connected: boolean; display_name: string | null;
@@ -4318,6 +4477,10 @@ analyticsId: string;
  * When enabled, classifies desktop activity and triggers event-based pipes.
  */
 enableWorkflowEvents?: boolean;
+/**
+ * Next-step hints shown when the user pauses mid-task. Off by default.
+ */
+nextStepHints?: NextStepHintsSettings;
 /**
  * Detected hardware tier ("high", "mid", "low").
  * Set once on first launch; `None` for existing installs (treated as High).

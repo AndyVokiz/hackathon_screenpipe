@@ -117,6 +117,7 @@ mod owned_browser_transport;
 // GCM + WebView2) and Linux (libsecret + webkit2gtk) readers land.
 mod engine_events;
 mod monitor_events;
+mod next_step;
 mod owned_browser_cookies;
 mod permissions;
 mod pi;
@@ -2492,6 +2493,10 @@ async fn main() {
                 )
                 .await;
             });
+
+            // Next-step hints: gate stalls from the pause detector and build
+            // their context. Idle until capture starts the detector.
+            next_step::start(app_handle.clone());
 
             // Start calendar events publisher (publishes to event bus for meeting detection)
             tauri::async_runtime::spawn(async move {

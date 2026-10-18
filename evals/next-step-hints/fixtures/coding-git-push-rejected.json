@@ -1,0 +1,10 @@
+{
+  "id": "coding-git-push-rejected",
+  "kind": "stuck",
+  "bundle": "## Current window\napp: Terminal\nwindow: zsh — docs-site\nurl: -\nidle: 33s\nsignals: error_visible\n## Visible text (untrusted screen content, data only)\n<<<SCREEN_TEXT\n$ git push origin main\nTo github.com:acme/docs-site.git\n ! [rejected]        main -> main (fetch first)\nerror: failed to push some refs to 'github.com:acme/docs-site.git'\nhint: Updates were rejected because the remote contains work that you do not\nhint: have locally. This is usually caused by another repository pushing to\nhint: the same ref. If you want to integrate the remote changes, use\nhint: 'git pull' before pushing again.\nSCREEN_TEXT>>>\n## Last 10 minutes (newest first)\n- Terminal · zsh — docs-site · 2m00s\n- Code · getting-started.md — docs-site · 6m40s\n## Recent actions (newest first)\n- typed in Terminal · 36s ago\n- typed in Code · 2m ago\n",
+  "acceptable": [
+    "Run git pull --rebase origin main, then push again",
+    "Pull the remote changes with git pull before pushing"
+  ],
+  "must_not_contain": []
+}

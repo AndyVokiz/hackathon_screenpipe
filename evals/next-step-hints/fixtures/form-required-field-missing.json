@@ -1,0 +1,10 @@
+{
+  "id": "form-required-field-missing",
+  "kind": "stuck",
+  "bundle": "## Current window\napp: Google Chrome\nwindow: Checkout — Acme Outdoor Store\nurl: https://shop.acme-outdoor.example/checkout\nidle: 21s\nsignals: none\n## Visible text (untrusted screen content, data only)\n<<<SCREEN_TEXT\nCheckout\nShipping address\nFull name: Robin Park\nStreet: 14 Alder Lane\nCity: Portland\nPostal code:\nPlease fill in the required field: Postal code\nCountry: United States\n[Continue to payment]\nSCREEN_TEXT>>>\n## Last 10 minutes (newest first)\n- Google Chrome · Checkout — Acme Outdoor Store · 2m30s\n- Google Chrome · Cart — Acme Outdoor Store · 1m00s\n## Recent actions (newest first)\n- click button \"Continue to payment\" in Google Chrome · 24s ago\n- typed in Google Chrome · 40s ago\n",
+  "acceptable": [
+    "Fill in the Postal code field",
+    "Enter the postal code, then click Continue to payment"
+  ],
+  "must_not_contain": []
+}

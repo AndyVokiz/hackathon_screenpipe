@@ -9,8 +9,45 @@ import type {
 } from "@/lib/utils/tauri";
 import { mockLocalApiResponse, createMockHealth } from "./browser-engine-mock";
 import { createBrowserIpcMock } from "./browser-tauri-mock";
+import { mockNextStepHintNotification } from "./next-step-hint-fixture";
+import { isNextStepHintPayload } from "@/lib/next-step-hint";
 
 describe("browser development runtime", () => {
+  it("serves a fictional next-step hint whose card commands are silent no-ops", () => {
+    expect(isNextStepHintPayload(mockNextStepHintNotification())).toBe(true);
+    const warn = vi.fn();
+    const invoke = createBrowserIpcMock({ mode: "mock", apiPort: 3030, warn });
+    expect(invoke("next_step_feedback", { hintId: "mock-next-step-hint", outcome: "manual" })).toBeNull();
+    expect(invoke("hide_notification_panel", {})).toBeNull();
+    expect(warn).not.toHaveBeenCalled();
+  });
+  it("scripts a fictional Do it for me run with a permission prompt", () => {
+    vi.useFakeTimers();
+    try {
+      const onEvent = vi.fn();
+      const invoke = createBrowserIpcMock({ mode: "mock", apiPort: 3030, onEvent });
+      invoke("next_step_execute", { hintId: "mock-next-step-hint", confirmed: false });
+      vi.advanceTimersByTime(2_000);
+      invoke("next_step_permission_response", { hintId: "mock-next-step-hint", requestId: "mock-permission", optionId: "allow_once" });
+      vi.advanceTimersByTime(2_000);
+      const states = onEvent.mock.calls
+        .filter(([name]) => name === "next-step-progress")
+        .map(([, payload]) => (payload as { state: string }).state);
+      expect(states).toEqual(["running", "needs_permission", "running", "done"]);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+  it("answers the next-step hints settings status, with a missing-input variant", () => {
+    const ready = createBrowserIpcMock({ mode: "mock", apiPort: 3030 });
+    expect(ready("next_step_settings_status", {})).toMatchObject({
+      recipient: { kind: "remote" },
+      inputCapture: "running",
+      defaults: { enabled: false, pauseSeconds: 20 },
+    });
+    const missing = createBrowserIpcMock({ mode: "mock", apiPort: 3030, nextStepInputCapture: "missing" });
+    expect(missing("next_step_apply_settings", {})).toMatchObject({ inputCapture: "missing" });
+  });
   it("supplies startup authentication only for the fictional mock environment", () => {
     const mock = createBrowserIpcMock({ mode: "mock", apiPort: 3030 });
     const live = createBrowserIpcMock({ mode: "live", apiPort: 3030 });

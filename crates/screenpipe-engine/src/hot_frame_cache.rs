@@ -191,6 +191,22 @@ impl HotFrameCache {
             .collect()
     }
 
+    /// Raw cached frames for a time range, oldest first. Cheaper than
+    /// [`Self::get_frames_in_range`] (no audio join, O(1) clones) and keeps
+    /// `capture_trigger`, which next-step pause detection uses to tell
+    /// input-driven frames from idle-timer captures on other monitors.
+    pub async fn get_hot_frames_in_range(
+        &self,
+        start: DateTime<Utc>,
+        end: DateTime<Utc>,
+    ) -> Vec<HotFrame> {
+        let frames = self.frames.read().await;
+        frames
+            .range((start, i64::MIN)..=(end, i64::MAX))
+            .map(|(_, hot_frame)| hot_frame.clone())
+            .collect()
+    }
+
     /// Earliest timestamp the cache covers (inclusive).
     /// Returns `None` if cache is empty / not yet warmed.
     /// The streaming handler uses this to skip or narrow the DB backfill.
@@ -494,6 +510,38 @@ mod tests {
         assert_eq!(result.len(), 1);
         assert_eq!(result[0].frame_data[0].frame_id, 1);
         assert_eq!(result[0].frame_data[0].metadata.app_name, "TestApp");
+    }
+
+    #[tokio::test]
+    async fn hot_frames_in_range_are_oldest_first_and_keep_the_trigger() {
+        let cache = HotFrameCache::new();
+        let now = Utc::now();
+        let frame_at = |id: i64, secs_ago: i64, trigger: &str| HotFrame {
+            frame_id: id,
+            timestamp: now - chrono::Duration::seconds(secs_ago),
+            device_name: "monitor_0".into(),
+            app_name: "TestApp".into(),
+            window_name: "TestWindow".into(),
+            ocr_text_preview: "".into(),
+            snapshot_path: "".into(),
+            browser_url: None,
+            capture_trigger: trigger.into(),
+            offset_index: 0,
+            fps: 0.5,
+            machine_id: None,
+        };
+        cache.push_frame(frame_at(3, 5, "typing_pause")).await;
+        cache.push_frame(frame_at(2, 30, "idle")).await;
+        cache.push_frame(frame_at(1, 120, "click")).await;
+
+        let frames = cache
+            .get_hot_frames_in_range(now - chrono::Duration::seconds(60), now)
+            .await;
+        let seen: Vec<(i64, &str)> = frames
+            .iter()
+            .map(|frame| (frame.frame_id, &*frame.capture_trigger))
+            .collect();
+        assert_eq!(seen, vec![(2, "idle"), (3, "typing_pause")]);
     }
 
     #[tokio::test]

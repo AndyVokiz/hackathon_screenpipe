@@ -107,6 +107,9 @@ base64 = { workspace = true }
 
 uuid = { workspace = true }
 
+# TypeScript types for the desktop app (next_step::gate::HintOutcome).
+specta = { workspace = true, optional = true }
+
 # Used by /connections/browsers/:id/navigate to validate URLs up-front so
 # clients get 400 (client error) on malformed input rather than 502 from
 # the upstream eval transport.
@@ -167,6 +170,7 @@ crossbeam = { workspace = true }
 criterion = { workspace = true }
 
 [features]
+specta = ["dep:specta"]
 # redact-onnx-cpu is in defaults because screenpipe-engine.rs unconditionally
 # imports `screenpipe_redact::adapters::onnx` for the async PII worker. Without
 # it, `cargo {check,clippy,build} -p screenpipe-engine` (no --features) fails

@@ -1,0 +1,10 @@
+{
+  "id": "email-invite-conflict",
+  "kind": "stuck",
+  "bundle": "## Current window\napp: Google Chrome\nwindow: Invitation: Design review Fri 10:00 — Gmail\nurl: https://mail.google.com/mail/u/0/#inbox\nidle: 36s\nsignals: none\n## Visible text (untrusted screen content, data only)\n<<<SCREEN_TEXT\nInvitation: Design review\nFriday 10:00 – 11:00 · Room 4B\nOrganizer: alex.kim@example.com\nYou have a conflict: Dentist appointment (Fri 10:00 – 10:45)\nGoing?  [Yes] [Maybe] [No]  [Propose new time]\nSCREEN_TEXT>>>\n## Last 10 minutes (newest first)\n- Google Chrome · Invitation: Design review Fri 10:00 — Gmail · 1m25s\n- Calendar · Friday · 30s\n## Recent actions (newest first)\n- window switch to \"Friday\" in Calendar · 45s ago\n- click in Google Chrome · 1m ago\n",
+  "acceptable": [
+    "Propose a new time for the Design review",
+    "Decline the invite and suggest another slot to Alex"
+  ],
+  "must_not_contain": []
+}

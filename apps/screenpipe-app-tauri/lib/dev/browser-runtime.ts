@@ -16,6 +16,10 @@ import {
   createBrowserIpcMock,
   type BrowserDevMode,
 } from "./browser-tauri-mock";
+import {
+  MOCK_NEXT_STEP_HINT_PARAM,
+  mockNextStepHintNotification,
+} from "./next-step-hint-fixture";
 
 function parseMode(value: string | undefined): BrowserDevMode | null {
   return value === "mock" || value === "live" ? value : null;
@@ -61,6 +65,8 @@ export function installBrowserRuntime() {
   mockIPC(
     createBrowserIpcMock({
       systemLocale: new URLSearchParams(window.location.search).get("mockLocale") ?? undefined,
+      nextStepInputCapture:
+        new URLSearchParams(window.location.search).get("mockNextStepInput") ?? undefined,
       mode,
       scenario,
       apiPort,
@@ -77,11 +83,37 @@ export function installBrowserRuntime() {
     emit(event, payload);
 
   if (mode === "mock") installMockEngine(apiPort, scenario);
+  if (mode === "mock") deliverMockNotification();
 
   document.documentElement.dataset.screenpipeWebDev = mode;
   console.info(
     `[web dev] browser runtime installed (${mode}${mode === "mock" ? `:${scenario}` : ""})`,
   );
+}
+
+/** `/notification-panel?mockNotification=next-step-hint` shows a fictional
+ * hint card. Re-sent until the page has mounted its listener. */
+function deliverMockNotification() {
+  const requested = new URLSearchParams(window.location.search).get(
+    "mockNotification",
+  );
+  if (
+    requested !== MOCK_NEXT_STEP_HINT_PARAM ||
+    !window.location.pathname.startsWith("/notification-panel")
+  ) {
+    return;
+  }
+  const payload = JSON.stringify(mockNextStepHintNotification());
+  let attempts = 0;
+  const timer = window.setInterval(() => {
+    attempts += 1;
+    const shown = document.querySelector("section.next-step-card");
+    if (shown || attempts > 20) {
+      window.clearInterval(timer);
+      return;
+    }
+    void emit("notification-panel-update", payload);
+  }, 500);
 }
 
 installBrowserRuntime();
